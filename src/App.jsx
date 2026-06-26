@@ -90,7 +90,7 @@ const VENUE_CONFIGS = {
   burgdorff: {
     label: "Burgdorff Center",
     icon: "🏛",
-    desc: "Burgdorff Center, Maplewood NJ — curved apron, control booth notch",
+    desc: "Burgdorff Center, Maplewood NJ — curved DS apron, recessed US center section",
     stageW: 35.5, stageH: 26.5,
     roomW: 36, roomH: 32,
     stageOffX: 0, stageOffY: 0,
@@ -207,7 +207,7 @@ const DEFAULT_VENUE = {
   curvedApron: true,
   apronRadius: 17.75,
   apronDepth: 4.833,
-  // Upstage control booth notch: 13'10.5" wide x 4'6" deep, centered
+  // Upstage recessed center section: 13'10.5" wide, wings step forward 4'6"
   notch: true,
   notchW: 13.875,
   notchD: 4.5,
@@ -1011,23 +1011,23 @@ export default function StageDesigner() {
                   <div style={{ background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
                     <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:COLORS.text, cursor:"pointer", marginBottom: draft.notch ? 12 : 0 }}>
                       <input type="checkbox" checked={!!draft.notch} onChange={e=>upd("notch",e.target.checked)}/>
-                      <span style={{ fontWeight:"bold" }}>Upstage Notch / Booth Cutout</span>
+                      <span style={{ fontWeight:"bold" }}>Upstage Recessed Section</span>
                     </label>
                     {draft.notch && (
                       <div style={{ display:"flex", gap:10 }}>
                         <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>NOTCH WIDTH (ft)</div>
+                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>RECESSED CENTER WIDTH (ft)</div>
                           <input type="number" value={draft.notchW??13.875} min={1} max={50} step={0.083}
                             onChange={e=>upd("notchW",+e.target.value)}
                             style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 13.875 (13'10½")</div>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 13.875 (13'10½") — center section</div>
                         </div>
                         <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>NOTCH DEPTH (ft)</div>
+                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>WING STEP DEPTH (ft)</div>
                           <input type="number" value={draft.notchD??4.5} min={0.5} max={20} step={0.083}
                             onChange={e=>upd("notchD",+e.target.value)}
                             style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 4.5 (4'6")</div>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 4.5 (4'6") — how far wings step DS</div>
                         </div>
                       </div>
                     )}
@@ -1666,45 +1666,64 @@ export default function StageDesigner() {
                   </g>
                 );
               })()}
-              {/* ── Stage floor ── */}
+              {/* ── Stage floor — Burgdorff shape ── */}
               {(() => {
                 const apron = venue.curvedApron;
-                const notch = venue.notch;
-                const aD = (venue.apronDepth  || 4.833) * GRID;
-                // Compute true SVG arc radius from stage width (chord) and apron depth (sagitta)
-                // Formula: r = (chord²/4 + sagitta²) / (2 × sagitta)
+                const hasUSRecess = venue.notch; // repurposed: upstage recessed wings
+
+                // ── Burgdorff dimensions ──────────────────────────────────────
+                // SR wing width (ft→px)
+                const srWingW = (venue.notchW
+                  ? (36 - venue.notchW) / 2          // derive wing from center width
+                  : 11.083) * GRID;                   // default 11'1"
+                const centerW = (venue.notchW || 13.875) * GRID;  // 13'10.5"
+                const slWingW = SW - srWingW - centerW; // remainder
+
+                // Step depth: how much further US the center recesses (4'6")
+                const stepD = (venue.notchD || 4.5) * GRID;
+
+                // Apron (DS curve)
+                const aD = (venue.apronDepth || 4.833) * GRID;
+                // SVG arc radius from chord (SW) and sagitta (aD)
                 const aR = (SW * SW / 4 + aD * aD) / (2 * aD);
-                const nW = (venue.notchW || 13.875) * GRID;
-                const nD = (venue.notchD || 4.5)   * GRID;
 
-                // The main rectangular deck runs from y=0 (US) to y=SH (plasterline)
-                // The apron arc drops below SH by aD at center
-                // Arc center is at (SW/2, SH - sqrt(aR^2 - (SW/2)^2)) so it
-                // passes through (0,SH), (SW/2,SH+aD), (SW,SH)
-                const arcCy = SH - Math.sqrt(Math.max(0, aR*aR - (SW/2)*(SW/2)));
+                // ── Key x coordinates ─────────────────────────────────────────
+                // x=0          SR outer edge of stage
+                // x=srWingW    SR wing inner edge / center recess SR corner
+                // x=srWingW+centerW  SL wing inner edge / center recess SL corner
+                // x=SW         SL outer edge of stage
+                const cx1 = srWingW;              // center recess SR corner
+                const cx2 = srWingW + centerW;   // center recess SL corner
 
-                // Build the stage outline path:
-                // Start US-SR corner, go clockwise
-                // US wall has notch cut in if notch=true
-                const notchX1 = (SW - nW) / 2;
-                const notchX2 = (SW + nW) / 2;
+                // ── Key y coordinates ─────────────────────────────────────────
+                // y=0     deepest upstage point (US wall of recessed center)
+                // y=stepD wing US wall (wings are shallower by stepD)
+                // y=SH    plasterline (DS edge of main rectangular deck)
+                // y=SH+aD apron DS tip at center
+
+                // ── Stage outline path (clockwise) ────────────────────────────
+                // Burgdorff shape with US recess + curved DS apron:
+                //
+                //   SR wing US    center recessed US wall    SL wing US
+                //  (0,stepD)──(cx1,stepD)   (cx2,stepD)──(SW,stepD)
+                //              |                       |
+                //           (cx1,0)─────────────(cx2,0)   ← deepest US
+                //
+                //  (0,stepD)                           (SW,stepD)
+                //     |                                    |
+                //  (0,SH)─────── curved apron ──────────(SW,SH)
 
                 let d;
-                if (apron && notch) {
+                if (apron && hasUSRecess) {
                   d = [
-                    `M 0,0`,
-                    // US wall SR side
-                    `L ${notchX1},0`,
-                    // notch indent (going into stage = positive Y since origin=US)
-                    `L ${notchX1},${nD}`,
-                    `L ${notchX2},${nD}`,
-                    `L ${notchX2},0`,
-                    // US wall SL side
-                    `L ${SW},0`,
-                    // SL wall to plasterline
-                    `L ${SW},${SH}`,
-                    // Curved apron arc SR→SL (large-arc=0, sweep=0 = concave outward)
-                    `A ${aR},${aR} 0 0,1 0,${SH}`,
+                    `M 0,${stepD}`,           // SR wing outer US corner
+                    `L ${cx1},${stepD}`,      // SR wing inner corner
+                    `L ${cx1},0`,             // center recess SR corner (deepest US)
+                    `L ${cx2},0`,             // center recess SL corner
+                    `L ${cx2},${stepD}`,      // SL wing inner corner
+                    `L ${SW},${stepD}`,       // SL wing outer US corner
+                    `L ${SW},${SH}`,          // SL plasterline corner
+                    `A ${aR},${aR} 0 0,1 0,${SH}`, // curved apron toward audience
                     `Z`
                   ].join(" ");
                 } else if (apron) {
@@ -1712,20 +1731,44 @@ export default function StageDesigner() {
                     `M 0,0 L ${SW},0 L ${SW},${SH}`,
                     `A ${aR},${aR} 0 0,1 0,${SH} Z`
                   ].join(" ");
-                } else if (notch) {
+                } else if (hasUSRecess) {
                   d = [
-                    `M 0,0 L ${notchX1},0 L ${notchX1},${nD}`,
-                    `L ${notchX2},${nD} L ${notchX2},0`,
-                    `L ${SW},0 L ${SW},${SH} L 0,${SH} Z`
+                    `M 0,${stepD} L ${cx1},${stepD} L ${cx1},0`,
+                    `L ${cx2},0 L ${cx2},${stepD} L ${SW},${stepD}`,
+                    `L ${SW},${SH} L 0,${SH} Z`
                   ].join(" ");
                 } else {
                   d = `M 0,0 L ${SW},0 L ${SW},${SH} L 0,${SH} Z`;
                 }
 
+                // Wing fill (different shade to show step)
+                const wingD = hasUSRecess ? [
+                  `M 0,${stepD} L ${cx1},${stepD} L ${cx1},${SH} L 0,${SH} Z`,
+                  `M ${cx2},${stepD} L ${SW},${stepD} L ${SW},${SH} L ${cx2},${SH} Z`,
+                ].join(" ") : null;
+
                 return (
                   <g>
-                    {/* Stage fill shape */}
-                    <path d={d} fill={COLORS.stage} stroke={COLORS.stageEdge} strokeWidth={3} strokeLinejoin="round"/>
+                    {/* Stage fill */}
+                    <path d={d} fill={COLORS.stage} stroke="none"/>
+
+                    {/* Wing areas — slightly lighter to show the US step */}
+                    {hasUSRecess && wingD && (
+                      <path d={wingD} fill="#303020" stroke="none"/>
+                    )}
+
+                    {/* Stage outline */}
+                    <path d={d} fill="none" stroke={COLORS.stageEdge} strokeWidth={3} strokeLinejoin="round"/>
+
+                    {/* US step line across wings (shows the step edge) */}
+                    {hasUSRecess && (
+                      <>
+                        <line x1={0} y1={stepD} x2={cx1} y2={stepD}
+                          stroke={COLORS.stageEdge} strokeWidth={1.5} opacity={0.6}/>
+                        <line x1={cx2} y1={stepD} x2={SW} y2={stepD}
+                          stroke={COLORS.stageEdge} strokeWidth={1.5} opacity={0.6}/>
+                      </>
+                    )}
 
                     {/* Grid clipped to stage shape */}
                     <clipPath id="stageClip">
@@ -1739,55 +1782,53 @@ export default function StageDesigner() {
                     <line x1={0} y1={SH} x2={SW} y2={SH}
                       stroke={COLORS.stageEdge} strokeWidth={2} strokeDasharray="12,6" opacity={0.9}/>
 
-                    {/* Apron arc outline only */}
+                    {/* Apron arc edge */}
                     {apron && (
-                      <path
-                        d={`M 0,${SH} A ${aR},${aR} 0 0,0 ${SW},${SH}`}
-                        fill="none" stroke={COLORS.stageEdge} strokeWidth={2.5}
-                      />
+                      <path d={`M 0,${SH} A ${aR},${aR} 0 0,0 ${SW},${SH}`}
+                        fill="none" stroke={COLORS.stageEdge} strokeWidth={2.5}/>
                     )}
 
-                    {/* Apron depth annotation */}
+                    {/* Dimension annotations */}
                     {apron && (
-                      <g opacity={0.45}>
+                      <g opacity={0.4}>
                         <line x1={SW/2} y1={SH} x2={SW/2} y2={SH+aD}
                           stroke={COLORS.stageEdge} strokeWidth={1} strokeDasharray="4,3"/>
                         <text x={SW/2+6} y={SH+aD/2+4}
                           fill={COLORS.stageEdge} fontSize={9} textAnchor="start">
-                          {(venue.apronDepth||4.833).toFixed(1)}'
+                          {(venue.apronDepth||4.833).toFixed(2)}'
                         </text>
                       </g>
                     )}
-
-                    {/* Notch annotation */}
-                    {notch && (
-                      <g opacity={0.45}>
-                        <text x={SW/2} y={nD/2+4}
-                          fill={COLORS.stageEdge} fontSize={9} textAnchor="middle">
-                          Control booth {(venue.notchW||13.875).toFixed(1)}'
+                    {hasUSRecess && (
+                      <g opacity={0.4}>
+                        <line x1={SW/2} y1={0} x2={SW/2} y2={stepD}
+                          stroke={COLORS.stageEdge} strokeWidth={1} strokeDasharray="4,3"/>
+                        <text x={SW/2+6} y={stepD/2+4}
+                          fill={COLORS.stageEdge} fontSize={9} textAnchor="start">
+                          {(venue.notchD||4.5).toFixed(1)}'
+                        </text>
+                        <text x={SW/2} y={stepD/2-6}
+                          fill={COLORS.stageEdge} fontSize={8} textAnchor="middle" opacity={0.7}>
+                          ← {(venue.notchW||13.875).toFixed(1)}' →
                         </text>
                       </g>
                     )}
 
                     {/* Center line */}
                     <line x1={SW/2} y1={0} x2={SW/2} y2={SH}
-                      stroke={COLORS.stageEdge} strokeWidth={1} strokeDasharray="6,4" opacity={0.35}/>
+                      stroke={COLORS.stageEdge} strokeWidth={1} strokeDasharray="6,4" opacity={0.3}/>
 
-                    {/* Measure labels outside clip */}
                     {measureLabels}
 
-                    {/* Stage floor watermark */}
-                    <text x={SW/2} y={SH/2+nD/2} fill={COLORS.stageEdge} fontSize={18}
-                      textAnchor="middle" dominantBaseline="middle" opacity={0.2} letterSpacing={3}>
-                      STAGE FLOOR
-                    </text>
-                    <text x={SW/2} y={SH/2+nD/2+22} fill={COLORS.stageEdge} fontSize={11}
-                      textAnchor="middle" dominantBaseline="middle" opacity={0.14}>
+                    <text x={SW/2} y={SH/2+(hasUSRecess?stepD/2:0)} fill={COLORS.stageEdge}
+                      fontSize={18} textAnchor="middle" dominantBaseline="middle"
+                      opacity={0.2} letterSpacing={3}>STAGE FLOOR</text>
+                    <text x={SW/2} y={SH/2+(hasUSRecess?stepD/2:0)+22} fill={COLORS.stageEdge}
+                      fontSize={11} textAnchor="middle" dominantBaseline="middle" opacity={0.14}>
                       {stageW}' × {stageH}'
                     </text>
 
-                    {/* Orientation labels */}
-                    <text x={SW/2} y={SH+aD+22} fill={COLORS.stageEdge} fontSize={10} textAnchor="middle" opacity={0.5}>▲ DOWNSTAGE / AUDIENCE</text>
+                    <text x={SW/2} y={SH+(apron?aD:0)+22} fill={COLORS.stageEdge} fontSize={10} textAnchor="middle" opacity={0.5}>▲ DOWNSTAGE / AUDIENCE</text>
                     <text x={SW/2} y={-20} fill={COLORS.stageEdge} fontSize={10} textAnchor="middle" opacity={0.5}>UPSTAGE ▼</text>
                     <text x={-22} y={SH/2} fill={COLORS.stageEdge} fontSize={10} textAnchor="middle" opacity={0.5} transform={`rotate(-90,-22,${SH/2})`}>SR →</text>
                     <text x={SW+22} y={SH/2} fill={COLORS.stageEdge} fontSize={10} textAnchor="middle" opacity={0.5} transform={`rotate(90,${SW+22},${SH/2})`}>← SL</text>
