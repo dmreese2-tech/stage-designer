@@ -636,9 +636,17 @@ export default function StageDesigner() {
     }
     if (dragging) {
       const pt = svgPt(e.clientX, e.clientY);
-      setElements(prev => prev.map(el =>
-        el.id === dragging.id ? { ...el, x: snap(pt.x - dragging.ox), y: snap(pt.y - dragging.oy) } : el
-      )); return;
+      setElements(prev => prev.map(el => {
+        if (el.id !== dragging.id) return el;
+        if (dragging.mode === "battenMove") {
+          const nx1 = snap(pt.x - dragging.ox), ny1 = snap(pt.y - dragging.oy);
+          const dx = nx1 - el.x1, dy = ny1 - el.y1;
+          return { ...el, x1: nx1, y1: ny1, x2: el.x2 + dx, y2: el.y2 + dy };
+        }
+        if (dragging.mode === "battenP1") return { ...el, x1: snap(pt.x), y1: snap(pt.y) };
+        if (dragging.mode === "battenP2") return { ...el, x2: snap(pt.x), y2: snap(pt.y) };
+        return { ...el, x: snap(pt.x - dragging.ox), y: snap(pt.y - dragging.oy) };
+      })); return;
     }
     const pt = svgPt(e.clientX, e.clientY);
     if (drawingWall && wallStart) setDrawingWall({ x1:wallStart.x, y1:wallStart.y, x2:snap(pt.x), y2:snap(pt.y) });
@@ -808,9 +816,31 @@ export default function StageDesigner() {
     }
     if (el.type === "batten") {
       return (
-        <g key={el.id} onPointerDown={e=>{ e.stopPropagation(); if(tool==="delete"){setElements(p=>p.filter(x=>x.id!==el.id));setSelected(null);}else{setSelected(el.id);if(sidebarTab!=="props")setSidebarTab("props");} }} onPointerEnter={()=>setHoverId(el.id)} onPointerLeave={()=>setHoverId(null)} style={{ cursor:"pointer" }}>
-          <BattenSVG el={el} selected={isSel}/>
-          {!isSel && <text x={(el.x1+el.x2)/2} y={(el.y1+el.y2)/2-10} fill={COLORS.batten} fontSize={9} textAnchor="middle" opacity={0.7}>{el.label}</text>}
+        <g key={el.id}>
+          <g
+            onPointerDown={e=>{
+              e.stopPropagation();
+              if (tool==="delete") { setElements(p=>p.filter(x=>x.id!==el.id)); setSelected(null); return; }
+              setSelected(el.id);
+              if (sidebarTab!=="props") setSidebarTab("props");
+              if (tool==="select") {
+                const pt = svgPt(e.clientX, e.clientY);
+                setDragging({ id: el.id, mode:"battenMove", ox: pt.x-el.x1, oy: pt.y-el.y1 });
+              }
+            }}
+            onPointerEnter={()=>setHoverId(el.id)} onPointerLeave={()=>setHoverId(null)}
+            style={{ cursor: tool==="delete"?"crosshair":"move" }}>
+            <BattenSVG el={el} selected={isSel}/>
+            {!isSel && <text x={(el.x1+el.x2)/2} y={(el.y1+el.y2)/2-10} fill={COLORS.batten} fontSize={9} textAnchor="middle" opacity={0.7}>{el.label}</text>}
+          </g>
+          {isSel && tool==="select" && (
+            <>
+              <circle cx={el.x1} cy={el.y1} r={7} fill={COLORS.selected} stroke="#000" strokeWidth={1} style={{ cursor:"ew-resize" }}
+                onPointerDown={e=>{ e.stopPropagation(); setSelected(el.id); setDragging({ id: el.id, mode:"battenP1" }); }}/>
+              <circle cx={el.x2} cy={el.y2} r={7} fill={COLORS.selected} stroke="#000" strokeWidth={1} style={{ cursor:"ew-resize" }}
+                onPointerDown={e=>{ e.stopPropagation(); setSelected(el.id); setDragging({ id: el.id, mode:"battenP2" }); }}/>
+            </>
+          )}
         </g>
       );
     }
@@ -1495,6 +1525,35 @@ export default function StageDesigner() {
                     style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Batten position — endpoints + depth, editable numerically as well as by dragging */}
+        {isBatten && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>POSITION (ft)</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {[["X1 (SR)","x1"],["X2 (SL)","x2"]].map(([lbl,key])=>(
+                <div key={key}>
+                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
+                  <input type="number" value={Math.round((selEl[key]||0)/GRID*10)/10}
+                    onChange={e=>updateEl(key,+e.target.value*GRID)}
+                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+                </div>
+              ))}
+              <div>
+                <div style={{ fontSize:9, color:COLORS.textDim }}>Depth (Y)</div>
+                <input type="number" value={Math.round((selEl.y1||0)/GRID*10)/10}
+                  onChange={e=>{ const v=+e.target.value*GRID; updateEl("y1",v); updateEl("y2",v); }}
+                  style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+              </div>
+            </div>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginTop:5 }}>
+              Length: {(Math.hypot((selEl.x2||0)-(selEl.x1||0), (selEl.y2||0)-(selEl.y1||0))/GRID).toFixed(1)}'
+            </div>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginTop:3 }}>
+              Tip: drag the pipe on the canvas to move it, or drag the gold endpoint handles to resize.
             </div>
           </div>
         )}
