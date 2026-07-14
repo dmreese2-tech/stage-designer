@@ -515,6 +515,122 @@ function generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo) {
   }
 }
 
+// ── Design plot PDF (visual stage/lighting/set layout) ───────────────────────
+function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo) {
+  if (!svgEl) return;
+
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+  // The live canvas wraps everything in a pan/zoom <g transform="...">; strip
+  // that so the export always shows the whole design, not just what's currently
+  // scrolled/zoomed into view.
+  const innerG = clone.querySelector("g");
+  if (innerG) innerG.removeAttribute("transform");
+
+  const offX = (venue.stageOffX || 0) * GRID, offY = (venue.stageOffY || 0) * GRID;
+  const rx = -offX, ry = -offY;
+  const rW = (venue.roomW || stageW) * GRID, rH = (venue.roomH || stageH) * GRID;
+  const margin = 40;
+  clone.removeAttribute("style");
+  clone.setAttribute("viewBox", `${rx - margin} ${ry - margin} ${rW + margin * 2} ${rH + margin * 2}`);
+  clone.setAttribute("width", "100%");
+  clone.setAttribute("height", "auto");
+  clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+  const svgString = new XMLSerializer().serializeToString(clone);
+
+  const now = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+  const fixtureCount = elements.filter(e => e.category === "lighting").length;
+  const battenCount = elements.filter(e => e.type === "batten").length;
+  const setCount = elements.filter(e => e.category !== "lighting" && e.type !== "batten").length;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Design Plot — ${projectInfo.title || "Stage Design"}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Helvetica Neue",Arial,sans-serif; font-size:10pt; color:#111; background:#fff; }
+  .page { width:11in; padding:0.5in; }
+  @media print { .page { width:100%; padding:0.4in; } .no-print{display:none} }
+
+  .title-block { border:2px solid #222; margin-bottom:16px; }
+  .title-main { display:flex; border-bottom:1px solid #222; }
+  .title-main .show { flex:1; padding:10px 12px; border-right:1px solid #222; }
+  .title-main .show h1 { font-size:18pt; font-weight:900; letter-spacing:1px; }
+  .title-main .show .sub { font-size:10pt; color:#555; margin-top:2px; }
+  .title-meta { display:flex; }
+  .meta-cell { padding:6px 12px; border-right:1px solid #222; min-width:120px; }
+  .meta-cell:last-child { border-right:none; }
+  .meta-cell .key { font-size:7pt; text-transform:uppercase; letter-spacing:1px; color:#888; }
+  .meta-cell .val { font-size:10pt; font-weight:bold; }
+
+  .summary { display:flex; gap:16px; margin-bottom:16px; }
+  .stat { border:1px solid #ddd; border-radius:4px; padding:8px 14px; text-align:center; min-width:90px; }
+  .stat .n { font-size:18pt; font-weight:900; color:#222; }
+  .stat .k { font-size:7.5pt; text-transform:uppercase; letter-spacing:0.5px; color:#888; margin-top:2px; }
+
+  .plot-frame { border:1px solid #222; border-radius:4px; overflow:hidden; background:#1a1a2e; }
+  .plot-frame svg { display:block; width:100%; height:auto; }
+
+  .print-btn { position:fixed; top:12px; right:12px; background:#e94560; color:#fff; border:none;
+               padding:10px 20px; border-radius:6px; font-size:11pt; cursor:pointer; font-weight:bold; z-index:999; }
+  .print-btn:hover { background:#c03050; }
+  footer { margin-top:16px; font-size:7.5pt; color:#888; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between; }
+</style>
+</head>
+<body>
+<button class="print-btn no-print" onclick="window.print()">🖨 Print / Save PDF</button>
+<div class="page">
+
+  <div class="title-block">
+    <div class="title-main">
+      <div class="show">
+        <h1>${projectInfo.title || "UNTITLED PRODUCTION"}</h1>
+        <div class="sub">${projectInfo.venue || ""}</div>
+      </div>
+      <div style="padding:10px 14px;text-align:right;min-width:200px">
+        <div style="font-size:7.5pt;text-transform:uppercase;color:#888">Stage &amp; Lighting</div>
+        <div style="font-size:22pt;font-weight:900">DESIGN PLOT</div>
+      </div>
+    </div>
+    <div class="title-meta">
+      <div class="meta-cell"><div class="key">Designer</div><div class="val">${projectInfo.designer || "—"}</div></div>
+      <div class="meta-cell"><div class="key">Director</div><div class="val">${projectInfo.director || "—"}</div></div>
+      <div class="meta-cell"><div class="key">Stage Size</div><div class="val">${stageW}' × ${stageH}'</div></div>
+      <div class="meta-cell"><div class="key">Date</div><div class="val">${now}</div></div>
+      <div class="meta-cell"><div class="key">Revision</div><div class="val">${projectInfo.revision || "1"}</div></div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="stat"><div class="n">${fixtureCount}</div><div class="k">Lighting Fixtures</div></div>
+    <div class="stat"><div class="n">${setCount}</div><div class="k">Set Pieces</div></div>
+    <div class="stat"><div class="n">${battenCount}</div><div class="k">Battens</div></div>
+    <div class="stat"><div class="n">${venue.roomW || "—"}' × ${venue.roomH || "—"}'</div><div class="k">Room Size</div></div>
+  </div>
+
+  <div class="plot-frame">
+    ${svgString}
+  </div>
+
+  <footer>
+    <span>Stage Designer App — Generated ${now}</span>
+    <span>${projectInfo.title || "Untitled Production"} | ${projectInfo.venue || ""}</span>
+  </footer>
+</div>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
+}
+
 // ── Shared small button ─────────────────────────────────────────────────────
   const Btn = ({onClick,children,active,danger,title}) => (
     <button onClick={onClick} title={title}
@@ -1039,7 +1155,7 @@ function ScheduleModal({ projectInfo, elements, stageW, stageH, lightingEls, bat
 }
 
 // ── Properties panel content ──────────────────────────────────────────────
-function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, selected }) {
+function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, selected, copySelected, pasteClipboard, duplicateSelected, hasClipboard }) {
     if (!selEl) return (
       <div style={{ padding:16, fontSize:11, color:COLORS.textDim, textAlign:"center", marginTop:20 }}>
         Select an element to edit its properties
@@ -1197,8 +1313,25 @@ function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, select
           </div>
         )}
 
+        <div style={{ display:"flex", gap:6, marginTop:12 }}>
+          <button onClick={copySelected}
+            style={{ flex:1, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
+            ⎘ Copy
+          </button>
+          <button onClick={duplicateSelected}
+            style={{ flex:1, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
+            ⧉ Duplicate
+          </button>
+        </div>
+        {hasClipboard && (
+          <button onClick={pasteClipboard}
+            style={{ marginTop:6, width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
+            📋 Paste Copy
+          </button>
+        )}
+
         <button onClick={()=>{setElements(prev=>prev.filter(e=>e.id!==selected));setSelected(null);}}
-          style={{ marginTop:12, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
+          style={{ marginTop:6, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
           🗑 Delete Element
         </button>
       </div>
@@ -1404,6 +1537,60 @@ export default function StageDesigner() {
   // ── update element ────────────────────────────────────────────────────────
   const updateEl = (key, val) => setElements(prev => prev.map(e => e.id === selected ? { ...e, [key]: val } : e));
 
+  // ── copy / paste ──────────────────────────────────────────────────────────
+  const [clipboard, setClipboard] = useState(null);
+  const [pasteCount, setPasteCount] = useState(0);
+
+  const cloneElWithOffset = useCallback((srcEl, offset) => {
+    const newEl = { ...srcEl, id: uid() };
+    if (newEl.x1 !== undefined) {
+      newEl.x1 += offset; newEl.y1 += offset; newEl.x2 += offset; newEl.y2 += offset;
+    } else {
+      newEl.x = (newEl.x || 0) + offset; newEl.y = (newEl.y || 0) + offset;
+    }
+    if (newEl.category === "lighting") {
+      newEl.channel = Math.max(0, ...elements.filter(x => x.category === "lighting").map(x => x.channel || 0)) + 1;
+    }
+    if (newEl.type === "batten") {
+      const battenCount = elements.filter(x => x.type === "batten").length + 1;
+      newEl.label = `Batten ${battenCount}`;
+    } else if (newEl.label) {
+      newEl.label = /\(copy\)$/.test(newEl.label) ? newEl.label : `${newEl.label} (copy)`;
+    }
+    return newEl;
+  }, [elements]);
+
+  const copySelected = useCallback(() => {
+    const el = elements.find(x => x.id === selected);
+    if (!el) return;
+    setClipboard(el);
+    setPasteCount(0);
+  }, [elements, selected]);
+
+  const pasteClipboard = useCallback(() => {
+    if (!clipboard) return;
+    const n = pasteCount + 1;
+    setPasteCount(n);
+    const newEl = cloneElWithOffset(clipboard, GRID * n);
+    setElements(prev => [...prev, newEl]);
+    setSelected(newEl.id);
+    if (sidebarTab !== "props") setSidebarTab("props");
+  }, [clipboard, pasteCount, cloneElWithOffset, sidebarTab]);
+
+  // one-click copy+paste on the currently selected element (avoids relying on
+  // clipboard state having updated yet, which copySelected+pasteClipboard back-to-back would)
+  const duplicateSelected = useCallback(() => {
+    const el = elements.find(x => x.id === selected);
+    if (!el) return;
+    const newEl = cloneElWithOffset(el, GRID);
+    setElements(prev => [...prev, newEl]);
+    setSelected(newEl.id);
+    setClipboard(el);
+    setPasteCount(1);
+    if (sidebarTab !== "props") setSidebarTab("props");
+  }, [elements, selected, cloneElWithOffset, sidebarTab]);
+
+
   // ── keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
@@ -1412,7 +1599,11 @@ export default function StageDesigner() {
       if ((e.key === "Delete" || e.key === "Backspace") && selected) {
         setElements(prev => prev.filter(x => x.id !== selected)); setSelected(null);
       }
-      if (!e.metaKey && !e.ctrlKey) {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "c" && selected) { copySelected(); e.preventDefault(); }
+      if (mod && e.key.toLowerCase() === "v" && clipboard) { pasteClipboard(); e.preventDefault(); }
+      if (mod && e.key.toLowerCase() === "d" && selected) { duplicateSelected(); e.preventDefault(); }
+      if (!mod) {
         if (e.key === "s") setTool("select");
         if (e.key === "w") setTool("wall");
         if (e.key === "b") setTool("batten");
@@ -1430,7 +1621,7 @@ export default function StageDesigner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected]);
+  }, [selected, clipboard, copySelected, pasteClipboard, duplicateSelected]);
 
   // ── JSON export / import ──────────────────────────────────────────────────
   const exportJSON = () => {
@@ -1595,6 +1786,9 @@ export default function StageDesigner() {
           <Btn key={t.id} active={tool===t.id} onClick={()=>setTool(t.id)} title={t.label}>{t.icon} {t.label.split(" ")[0]}</Btn>
         ))}
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
+        <Btn onClick={copySelected} title="Copy (Ctrl/Cmd+C)">⎘ Copy</Btn>
+        <Btn onClick={pasteClipboard} title="Paste (Ctrl/Cmd+V)">📋 Paste</Btn>
+        <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
         <Btn onClick={()=>setShowGrid(g=>!g)} active={showGrid}>Grid</Btn>
         <Btn onClick={()=>setShowMeasure(m=>!m)} active={showMeasure}>Scale</Btn>
         <div style={{ flex:1 }}/>
@@ -1603,7 +1797,8 @@ export default function StageDesigner() {
         <Btn onClick={()=>setShowVenueEditor(true)}>🏛 Venue</Btn>
         <Btn onClick={()=>setShowProjectInfo(true)}>⚙ Project</Btn>
         <Btn onClick={()=>setShowSchedule(true)} active={showSchedule}>📋 Schedule</Btn>
-        <Btn onClick={()=>generateInstrumentSchedulePDF(elements,stageW,stageH,projectInfo)}>🖨 PDF</Btn>
+        <Btn onClick={()=>generateInstrumentSchedulePDF(elements,stageW,stageH,projectInfo)} title="Print instrument/batten schedule as PDF">🖨 Sched PDF</Btn>
+        <Btn onClick={()=>generateDesignPDF(svgRef.current,elements,stageW,stageH,venue,projectInfo)} title="Print the stage/lighting/set design layout as PDF">🖨 Plot PDF</Btn>
         <Btn onClick={exportSVG}>⬇ SVG</Btn>
         <Btn onClick={exportJSON}>⬇ JSON</Btn>
         <Btn onClick={()=>fileInputRef.current?.click()}>⬆ Import</Btn>
@@ -1702,7 +1897,7 @@ export default function StageDesigner() {
             </div>
           )}
 
-          {sidebarTab === "props" && <PropsPanel selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected}/>}
+          {sidebarTab === "props" && <PropsPanel selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard}/>}
         </div>
 
         {/* ── canvas ── */}
