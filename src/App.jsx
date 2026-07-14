@@ -515,6 +515,696 @@ function generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo) {
   }
 }
 
+// ── Shared small button ─────────────────────────────────────────────────────
+  const Btn = ({onClick,children,active,danger,title}) => (
+    <button onClick={onClick} title={title}
+      style={{ background:danger?"#3a1010":active?COLORS.accent:"transparent",
+               color:danger?COLORS.accent:active?"#fff":COLORS.textDim,
+               border:`1px solid ${danger?COLORS.accent:active?COLORS.accent:COLORS.border}`,
+               borderRadius:5, padding:"4px 9px", cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
+      {children}
+    </button>
+  );
+
+  // ── Venue Editor modal ────────────────────────────────────────────────────
+function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, onClose, onApply }) {
+    const [draft, setDraft] = useState({ ...venue });
+    const [activeTab, setActiveTab] = useState("config");
+    const [editingZone, setEditingZone] = useState(null);
+    const [editingVom, setEditingVom] = useState(null);
+
+    const upd = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+    const applyPreset = (presetKey) => {
+      const p = VENUE_CONFIGS[presetKey];
+      setDraft(d => ({
+        ...d, config: p.config,
+        roomW: p.roomW, roomH: p.roomH,
+        stageOffX: p.stageOffX, stageOffY: p.stageOffY,
+        audience: JSON.parse(JSON.stringify(p.audience)),
+        // Shape features
+        curvedApron: p.curvedApron || false,
+        apronRadius: p.apronRadius || 17.75,
+        apronDepth:  p.apronDepth  || 4.833,
+        notch:       p.notch       || false,
+        notchW:      p.notchW      || 13.875,
+        notchD:      p.notchD      || 4.5,
+      }));
+      setStageW(p.stageW); setStageH(p.stageH);
+    };
+
+    const previewScale = 3.5;
+    const pW = draft.roomW * previewScale, pH = draft.roomH * previewScale;
+    const sX = (draft.stageOffX||0)*previewScale, sY = (draft.stageOffY||0)*previewScale;
+    const sSW = stageW * previewScale, sSH = stageH * previewScale;
+
+    const tabStyle = (id) => ({
+      padding: "7px 14px", background: activeTab===id ? COLORS.bg : "transparent",
+      color: activeTab===id ? COLORS.accent : COLORS.textDim, border:"none", cursor:"pointer",
+      fontSize:11, fontFamily:"inherit", borderBottom: activeTab===id ? `2px solid ${COLORS.accent}` : "2px solid transparent",
+    });
+    const fieldStyle = { width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"5px 7px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" };
+    const labelStyle = { fontSize:9, color:COLORS.textDim, marginBottom:3, textTransform:"uppercase", letterSpacing:0.5 };
+
+    return (
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, width:780, maxWidth:"96vw", maxHeight:"90vh", display:"flex", flexDirection:"column" }}>
+
+          {/* Header */}
+          <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
+            <span style={{ flex:1, fontSize:14, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>🏛 VENUE SPACE EDITOR</span>
+            <button onClick={onClose} style={{ background:"transparent", color:COLORS.textDim, border:"none", fontSize:20, cursor:"pointer" }}>✕</button>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display:"flex", borderBottom:`1px solid ${COLORS.border}` }}>
+            {[["config","Configuration"],["room","Room Shape"],["audience","Seating"],["access","Access"]].map(([id,lbl])=>(
+              <button key={id} style={tabStyle(id)} onClick={()=>setActiveTab(id)}>{lbl}</button>
+            ))}
+          </div>
+
+          <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+
+            {/* Left: controls */}
+            <div style={{ flex:1, overflowY:"auto", padding:18 }}>
+
+              {/* ── Config tab ── */}
+              {activeTab === "config" && (
+                <div>
+                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Choose a staging configuration preset to set up your room quickly. You can customize everything after.</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20 }}>
+                    {Object.entries(VENUE_CONFIGS).map(([key,cfg])=>(
+                      <div key={key} onClick={()=>applyPreset(key)}
+                        style={{ padding:"10px 12px", background: draft.config===key ? "#1a2a3a" : COLORS.bg,
+                          border:`1px solid ${draft.config===key ? COLORS.accent : COLORS.border}`,
+                          borderRadius:6, cursor:"pointer", transition:"all 0.15s" }}
+                        onMouseEnter={e=>{ if(draft.config!==key) e.currentTarget.style.borderColor=COLORS.hover; }}
+                        onMouseLeave={e=>{ if(draft.config!==key) e.currentTarget.style.borderColor=COLORS.border; }}>
+                        <div style={{ fontSize:18, marginBottom:3 }}>{cfg.icon}</div>
+                        <div style={{ fontSize:12, fontWeight:"bold", color: draft.config===key ? COLORS.accent : COLORS.text }}>{cfg.label}</div>
+                        <div style={{ fontSize:10, color:COLORS.textDim, marginTop:2 }}>{cfg.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>STAGE DIMENSIONS</div>
+                  <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+                    {[["Stage Width (ft)","stageW",stageW,setStageW],["Stage Depth (ft)","stageH",stageH,setStageH]].map(([lbl,key,val,setter])=>(
+                      <div key={key} style={{ flex:1 }}>
+                        <div style={labelStyle}>{lbl}</div>
+                        <input type="number" value={val} min={8} max={300} onChange={e=>setter(+e.target.value)} style={fieldStyle}/>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>ROOM DIMENSIONS</div>
+                  <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+                    {[["Room Width (ft)","roomW"],["Room Depth (ft)","roomH"]].map(([lbl,key])=>(
+                      <div key={key} style={{ flex:1 }}>
+                        <div style={labelStyle}>{lbl}</div>
+                        <input type="number" value={draft[key]||60} min={10} max={500} onChange={e=>upd(key,+e.target.value)} style={fieldStyle}/>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>STAGE POSITION WITHIN ROOM</div>
+                  <div style={{ display:"flex", gap:10, marginBottom:8 }}>
+                    {[["Offset from SR Wall (ft)","stageOffX"],["Offset from US Wall (ft)","stageOffY"]].map(([lbl,key])=>(
+                      <div key={key} style={{ flex:1 }}>
+                        <div style={labelStyle}>{lbl}</div>
+                        <input type="number" value={draft[key]||0} min={0} max={100} onChange={e=>upd(key,+e.target.value)} style={fieldStyle}/>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ marginBottom:12 }}>
+                    <div style={labelStyle}>Total House Seats</div>
+                    <input type="number" value={draft.houseSeats||0} min={0} max={5000} onChange={e=>upd("houseSeats",+e.target.value)} style={{ ...fieldStyle, width:120 }}/>
+                  </div>
+
+                  <div style={{ marginBottom:12 }}>
+                    <div style={labelStyle}>Upstage Orientation</div>
+                    <div style={{ display:"flex", gap:6 }}>
+                      {[["N","Top (default)"],["S","Bottom"],["W","Left"],["E","Right"]].map(([v,lbl])=>(
+                        <button key={v} onClick={()=>upd("orientation",v)}
+                          style={{ flex:1, padding:"5px 4px", fontSize:10, background:draft.orientation===v?COLORS.accent:"transparent", color:draft.orientation===v?"#fff":COLORS.textDim, border:`1px solid ${draft.orientation===v?COLORS.accent:COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+                    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:COLORS.text, cursor:"pointer" }}>
+                      <input type="checkbox" checked={draft.showRoom!==false} onChange={e=>upd("showRoom",e.target.checked)}/> Show room outline
+                    </label>
+                    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:COLORS.text, cursor:"pointer" }}>
+                      <input type="checkbox" checked={draft.showAudience!==false} onChange={e=>upd("showAudience",e.target.checked)}/> Show audience zones
+                    </label>
+                  </div>
+
+                  {/* ── Stage shape ── */}
+                  <div style={{ fontSize:9, color:COLORS.accent, marginBottom:8, letterSpacing:1 }}>STAGE SHAPE</div>
+
+                  {/* Curved apron */}
+                  <div style={{ background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
+                    <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:COLORS.text, cursor:"pointer", marginBottom: draft.curvedApron ? 12 : 0 }}>
+                      <input type="checkbox" checked={!!draft.curvedApron} onChange={e=>upd("curvedApron",e.target.checked)}/>
+                      <span style={{ fontWeight:"bold" }}>Curved Downstage Apron</span>
+                    </label>
+                    {draft.curvedApron && (
+                      <div style={{ display:"flex", gap:10 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>ARC RADIUS (ft)</div>
+                          <input type="number" value={draft.apronRadius??17.75} min={5} max={100} step={0.25}
+                            onChange={e=>upd("apronRadius",+e.target.value)}
+                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 17.75</div>
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>DEPTH AT CENTER (ft)</div>
+                          <input type="number" value={draft.apronDepth??4.833} min={0.5} max={20} step={0.083}
+                            onChange={e=>upd("apronDepth",+e.target.value)}
+                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 4.83 (4'10")</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* US Notch */}
+                  <div style={{ background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
+                    <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:COLORS.text, cursor:"pointer", marginBottom: draft.notch ? 12 : 0 }}>
+                      <input type="checkbox" checked={!!draft.notch} onChange={e=>upd("notch",e.target.checked)}/>
+                      <span style={{ fontWeight:"bold" }}>Upstage Recessed Section</span>
+                    </label>
+                    {draft.notch && (
+                      <div style={{ display:"flex", gap:10 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>RECESSED CENTER WIDTH (ft)</div>
+                          <input type="number" value={draft.notchW??13.875} min={1} max={50} step={0.083}
+                            onChange={e=>upd("notchW",+e.target.value)}
+                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 13.875 (13'10½") — center section</div>
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>WING STEP DEPTH (ft)</div>
+                          <input type="number" value={draft.notchD??4.5} min={0.5} max={20} step={0.083}
+                            onChange={e=>upd("notchD",+e.target.value)}
+                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 4.5 (4'6") — how far wings step DS</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Room tab ── */}
+              {activeTab === "room" && (
+                <div>
+                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:14 }}>Customize room colors and appearance.</div>
+                  <div style={{ display:"flex", gap:12, marginBottom:14 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={labelStyle}>Room Fill Color</div>
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input type="color" value={draft.roomColor||"#111118"} onChange={e=>upd("roomColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
+                        <input value={draft.roomColor||"#111118"} onChange={e=>upd("roomColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
+                      </div>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={labelStyle}>Room Border Color</div>
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input type="color" value={draft.roomBorderColor||"#3a3a5a"} onChange={e=>upd("roomBorderColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
+                        <input value={draft.roomBorderColor||"#3a3a5a"} onChange={e=>upd("roomBorderColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={labelStyle}>Default Audience Zone Color</div>
+                    <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:16 }}>
+                      <input type="color" value={draft.audienceColor||"#1a2a1a"} onChange={e=>upd("audienceColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
+                      <input value={draft.audienceColor||"#1a2a1a"} onChange={e=>upd("audienceColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
+                    </div>
+                  </div>
+                  <div style={{ padding:12, background:COLORS.bg, borderRadius:6, fontSize:11, color:COLORS.textDim, border:`1px solid ${COLORS.border}` }}>
+                    💡 Tip: For non-rectangular rooms (L-shaped, hexagonal, etc.), use the Wall drawing tool on the canvas to draw the room boundary as architectural walls on the Set layer.
+                  </div>
+                </div>
+              )}
+
+              {/* ── Audience / Seating tab ── */}
+              {activeTab === "audience" && (
+                <div>
+                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Define audience seating zones. Each zone appears as a shaded rectangle with seat row lines.</div>
+                  <button onClick={()=>{
+                    const newZone = { x:2, y: (draft.roomH||50)-15, w: (draft.roomW||50)-4, h:12, label:`Zone ${(draft.audience||[]).length+1}`, seats:80, color:"" };
+                    upd("audience", [...(draft.audience||[]), newZone]);
+                    setEditingZone((draft.audience||[]).length);
+                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
+                    + Add Seating Zone
+                  </button>
+
+                  {(draft.audience||[]).length === 0 && (
+                    <div style={{ color:COLORS.textDim, fontSize:11, padding:20, textAlign:"center" }}>No seating zones defined yet.</div>
+                  )}
+
+                  {(draft.audience||[]).map((az,i)=>(
+                    <div key={i} style={{ background:COLORS.bg, border:`1px solid ${editingZone===i?COLORS.accent:COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                        <div style={{ flex:1, fontSize:12, fontWeight:"bold", color:COLORS.text }}>{az.label}</div>
+                        <button onClick={()=>setEditingZone(editingZone===i?null:i)} style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
+                          {editingZone===i?"▲ Collapse":"▼ Edit"}
+                        </button>
+                        <button onClick={()=>{ const a=[...draft.audience]; a.splice(i,1); upd("audience",a); if(editingZone===i)setEditingZone(null); }}
+                          style={{ fontSize:10, padding:"3px 8px", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                      </div>
+                      {editingZone===i && (
+                        <div>
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                            {[["Label","label","text"],["Seat Count","seats","number"],["X from SR (ft)","x","number"],["Y from US (ft)","y","number"],["Width (ft)","w","number"],["Height (ft)","h","number"]].map(([lbl,key,type])=>(
+                              <div key={key}>
+                                <div style={labelStyle}>{lbl}</div>
+                                <input type={type} value={az[key]??""} onChange={e=>{
+                                  const a=[...draft.audience];
+                                  a[i]={...a[i],[key]:type==="number"?+e.target.value:e.target.value};
+                                  upd("audience",a);
+                                }} style={fieldStyle}/>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ marginTop:8 }}>
+                            <div style={labelStyle}>Zone Color (leave blank for default)</div>
+                            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                              <input type="color" value={az.color||draft.audienceColor||"#1a2a1a"} onChange={e=>{ const a=[...draft.audience]; a[i]={...a[i],color:e.target.value}; upd("audience",a); }}
+                                style={{ width:40, height:28, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
+                              <button onClick={()=>{ const a=[...draft.audience]; a[i]={...a[i],color:""}; upd("audience",a); }}
+                                style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>Reset to default</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Access / Vomitories tab ── */}
+              {activeTab === "access" && (
+                <div>
+                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Add vomitory entrances / exits cut through the room walls. Position is expressed as a fraction (0=SR/US edge, 1=SL/DS edge).</div>
+                  <button onClick={()=>{
+                    const newV = { wall:"S", pos:0.5, w:4, label:`Vom ${(draft.vomitories||[]).length+1}` };
+                    upd("vomitories", [...(draft.vomitories||[]), newV]);
+                    setEditingVom((draft.vomitories||[]).length);
+                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
+                    + Add Vomitory
+                  </button>
+
+                  {(draft.vomitories||[]).length === 0 && (
+                    <div style={{ color:COLORS.textDim, fontSize:11, padding:20, textAlign:"center" }}>No vomitories defined.</div>
+                  )}
+
+                  {(draft.vomitories||[]).map((vom,i)=>(
+                    <div key={i} style={{ background:COLORS.bg, border:`1px solid ${editingVom===i?COLORS.accent:COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: editingVom===i?8:0 }}>
+                        <div style={{ flex:1, fontSize:12, color:COLORS.text }}>{vom.label||`Vom ${i+1}`} — Wall: {vom.wall}</div>
+                        <button onClick={()=>setEditingVom(editingVom===i?null:i)} style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
+                          {editingVom===i?"▲":"▼ Edit"}
+                        </button>
+                        <button onClick={()=>{ const v=[...draft.vomitories]; v.splice(i,1); upd("vomitories",v); }}
+                          style={{ fontSize:10, padding:"3px 8px", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                      </div>
+                      {editingVom===i && (
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                          <div>
+                            <div style={labelStyle}>Label</div>
+                            <input value={vom.label||""} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],label:e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
+                          </div>
+                          <div>
+                            <div style={labelStyle}>Wall</div>
+                            <select value={vom.wall} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],wall:e.target.value}; upd("vomitories",v); }} style={fieldStyle}>
+                              <option value="N">North (Upstage)</option>
+                              <option value="S">South (Downstage)</option>
+                              <option value="W">West (SR)</option>
+                              <option value="E">East (SL)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <div style={labelStyle}>Position (0–1)</div>
+                            <input type="number" min={0} max={1} step={0.05} value={vom.pos??0.5} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],pos:+e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
+                          </div>
+                          <div>
+                            <div style={labelStyle}>Opening Width (ft)</div>
+                            <input type="number" min={2} max={30} value={vom.w??4} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],w:+e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right: live preview */}
+            <div style={{ width:220, borderLeft:`1px solid ${COLORS.border}`, padding:14, background:COLORS.bg, display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
+              <div style={{ fontSize:9, color:COLORS.textDim, letterSpacing:1, marginBottom:4 }}>LIVE PREVIEW</div>
+              <svg width={pW} height={pH} style={{ border:`1px solid ${COLORS.border}`, borderRadius:4, display:"block", maxWidth:"100%" }}>
+                {/* Room */}
+                <rect x={0} y={0} width={pW} height={pH} fill={draft.roomColor||"#111118"} stroke={draft.roomBorderColor||"#3a3a5a"} strokeWidth={2}/>
+                {/* Audience zones */}
+                {(draft.audience||[]).map((az,i)=>(
+                  <rect key={i} x={az.x*previewScale} y={az.y*previewScale} width={az.w*previewScale} height={az.h*previewScale}
+                    fill={az.color||draft.audienceColor||"#1a2a1a"} stroke="#3a5a3a" strokeWidth={1}/>
+                ))}
+                {/* Audience labels */}
+                {(draft.audience||[]).map((az,i)=>(
+                  <text key={i} x={(az.x+az.w/2)*previewScale} y={(az.y+az.h/2)*previewScale} fill="#4a7a4a" fontSize={7} textAnchor="middle" dominantBaseline="middle">{az.label}</text>
+                ))}
+                {/* Stage */}
+                {(() => {
+                  const psD = (draft.apronDepth||4.833)*previewScale;
+                  const psR = (sSW*sSW/4 + psD*psD)/(2*psD);
+                  const pnW = (draft.notchW||13.875)*previewScale;
+                  const pnD = (draft.notchD||4.5)*previewScale;
+                  const pnX1 = sX+(sSW-pnW)/2, pnX2 = sX+(sSW+pnW)/2;
+                  let pd;
+                  if (draft.curvedApron && draft.notch) {
+                    pd = `M ${sX},${sY+pnD} L ${pnX1},${sY+pnD} L ${pnX1},${sY} L ${pnX2},${sY} L ${pnX2},${sY+pnD} L ${sX+sSW},${sY+pnD} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
+                  } else if (draft.curvedApron) {
+                    pd = `M ${sX},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
+                  } else if (draft.notch) {
+                    pd = `M ${sX},${sY+pnD} L ${pnX1},${sY+pnD} L ${pnX1},${sY} L ${pnX2},${sY} L ${pnX2},${sY+pnD} L ${sX+sSW},${sY+pnD} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
+                  } else {
+                    pd = `M ${sX},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
+                  }
+                  return <path d={pd} fill={COLORS.stage} stroke={COLORS.stageEdge} strokeWidth={2}/>;
+                })()}
+                <text x={sX+sSW/2} y={sY+sSH/2} fill={COLORS.stageEdge} fontSize={7} textAnchor="middle" dominantBaseline="middle">STAGE</text>
+                {/* Plasterline — downstage edge of the main deck, where the apron begins */}
+                <line x1={sX} y1={sY+sSH} x2={sX+sSW} y2={sY+sSH} stroke={COLORS.stageEdge} strokeWidth={1.5} strokeDasharray="4,3"/>
+              </svg>
+              <div style={{ fontSize:9, color:COLORS.textDim, lineHeight:1.6 }}>
+                Room: {draft.roomW}' × {draft.roomH}'<br/>
+                Stage: {stageW}' × {stageH}'<br/>
+                Seats: {draft.houseSeats||0}<br/>
+                Config: {VENUE_CONFIGS[draft.config]?.label||draft.config}
+              </div>
+              {/* Quick audience adder */}
+              <div style={{ marginTop:"auto", fontSize:9, color:COLORS.textDim }}>
+                Audience zones: {(draft.audience||[]).length}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ display:"flex", justifyContent:"flex-end", gap:8, padding:"12px 18px", borderTop:`1px solid ${COLORS.border}` }}>
+            <button onClick={onClose} style={{ padding:"7px 18px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Cancel</button>
+            <button onClick={()=>onApply(draft)}
+              style={{ padding:"7px 20px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:"bold" }}>
+              ✓ Apply Venue
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Project info modal ────────────────────────────────────────────────────
+function ProjectInfoModal({ projectInfo, setProjectInfo, onClose }) {
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:24, width:420, maxWidth:"90vw" }}>
+        <div style={{ fontSize:13, fontWeight:"bold", color:COLORS.accent, marginBottom:16, letterSpacing:1 }}>PROJECT INFORMATION</div>
+        {[["Production Title","title"],["Venue","venue"],["Lighting Designer","designer"],["Director","director"],["Revision #","revision"]].map(([lbl,key])=>(
+          <div key={key} style={{ marginBottom:10 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>{lbl}</div>
+            <input value={projectInfo[key]||""} onChange={e=>setProjectInfo(p=>({...p,[key]:e.target.value}))}
+              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"6px 8px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
+          </div>
+        ))}
+        <div style={{ display:"flex", gap:8, marginTop:16, justifyContent:"flex-end" }}>
+          <Btn onClick={onClose}>Cancel</Btn>
+          <Btn active onClick={onClose}>Save</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Channel Schedule modal ────────────────────────────────────────────────
+function ScheduleModal({ projectInfo, elements, stageW, stageH, lightingEls, battens, setSelected, onClose, setSidebarTab }) {
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:0, width:860, maxWidth:"95vw", maxHeight:"85vh", display:"flex", flexDirection:"column" }}>
+        <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
+          <span style={{ flex:1, fontSize:13, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>INSTRUMENT SCHEDULE — {projectInfo.title||"Untitled"}</span>
+          <Btn active onClick={()=>generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo)}>🖨 Print / PDF</Btn>
+          <button onClick={onClose} style={{ marginLeft:8, background:"transparent", color:COLORS.textDim, border:"none", fontSize:18, cursor:"pointer" }}>✕</button>
+        </div>
+        <div style={{ flex:1, overflowY:"auto", padding:16 }}>
+          {lightingEls.length === 0
+            ? <div style={{ textAlign:"center", padding:40, color:COLORS.textDim }}>No lighting fixtures in plot yet.</div>
+            : <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                <thead>
+                  <tr style={{ background:COLORS.bg }}>
+                    {["Ch","Dimmer","Fixture Type","Label","Batten","Gel","Angle","X (ft)","Y (ft)","Notes"].map(h=>(
+                      <th key={h} style={{ padding:"6px 10px", textAlign:"left", color:COLORS.textDim, fontSize:9, textTransform:"uppercase", letterSpacing:0.5, borderBottom:`1px solid ${COLORS.border}` }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lightingEls.map(f=>{
+                    const gel = GEL_PRESETS.find(g=>g.code===f.gelCode)||{code:"Open",name:"Open White",hex:"#fff"};
+                    const batten = battens.find(b=>b.id===f.battenId);
+                    return (
+                      <tr key={f.id} onClick={()=>{setSelected(f.id);onClose();setSidebarTab("props");}}
+                        style={{ cursor:"pointer", borderBottom:`1px solid ${COLORS.border}` }}
+                        onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <td style={{ padding:"5px 10px", fontWeight:"bold", color:COLORS.accent }}>{f.channel}</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.dimmer||"—"}</td>
+                        <td style={{ padding:"5px 10px" }}>{FIXTURE_DEFS[f.type]?.label||f.type}</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.text }}>{f.label}</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{batten?.label||"—"}</td>
+                        <td style={{ padding:"5px 10px" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            <div style={{ width:12, height:12, borderRadius:"50%", background:gel.hex, border:"1px solid #666", flexShrink:0 }}/>
+                            <span style={{ color:COLORS.textDim, fontSize:10 }}>{gel.code}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.focusAngle}°</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{((f.x||0)/GRID).toFixed(1)}'</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{((f.y||0)/GRID).toFixed(1)}'</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.notes||""}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+          }
+          {battens.length > 0 && (
+            <>
+              <div style={{ fontSize:10, color:COLORS.accent, letterSpacing:1, marginTop:20, marginBottom:8, borderTop:`1px solid ${COLORS.border}`, paddingTop:12 }}>BATTEN SCHEDULE</div>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                <thead>
+                  <tr style={{ background:COLORS.bg }}>
+                    {["Name","Range","DS Depth","Trim Height","Fixtures"].map(h=>(
+                      <th key={h} style={{ padding:"6px 10px", textAlign:"left", color:COLORS.textDim, fontSize:9, textTransform:"uppercase", borderBottom:`1px solid ${COLORS.border}` }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {battens.map(b=>{
+                    const fx = lightingEls.filter(f=>f.battenId===b.id);
+                    const x1ft = ((b.x1)/GRID).toFixed(1), x2ft = ((b.x2)/GRID).toFixed(1);
+                    const yft = ((b.y1)/GRID).toFixed(1);
+                    return (
+                      <tr key={b.id} style={{ borderBottom:`1px solid ${COLORS.border}` }}>
+                        <td style={{ padding:"5px 10px", fontWeight:"bold", color:COLORS.batten }}>{b.label}</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{x1ft}' → {x2ft}'</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{yft}'</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{b.trim||"—"}</td>
+                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{fx.length>0?fx.map(f=>`Ch ${f.channel}`).join(", "):"None assigned"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Properties panel content ──────────────────────────────────────────────
+function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, selected }) {
+    if (!selEl) return (
+      <div style={{ padding:16, fontSize:11, color:COLORS.textDim, textAlign:"center", marginTop:20 }}>
+        Select an element to edit its properties
+      </div>
+    );
+
+    const isBatten = selEl.type === "batten";
+    const isLight = selEl.category === "lighting";
+    const isText = selEl.type === "textlabel";
+
+    return (
+      <div style={{ flex:1, overflowY:"auto", padding:10 }}>
+        <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>ELEMENT PROPERTIES</div>
+
+        {/* Label / name */}
+        {[
+          ["Label / Name","label","text"],
+          ...(isLight ? [
+            ["Channel #","channel","number"],
+            ["Dimmer","dimmer","text"],
+            ["Focus Angle °","focusAngle","number"],
+          ] : []),
+          ...(isBatten ? [["Trim Height (ft)","trim","text"]] : []),
+          ...(!isBatten ? [["Rotation °","rotation","number"]] : []),
+          ...(isText ? [["Font Size","fontSize","number"]] : []),
+        ].map(([lbl,key,type])=>(
+          <div key={key} style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
+            <input type={type} value={selEl[key]??""} onChange={e=>updateEl(key, type==="number"?+e.target.value:e.target.value)}
+              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
+          </div>
+        ))}
+
+        {/* Width / Height (ft) — converted from internal px units, same pattern as Position */}
+        {!isBatten && !isText && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>SIZE (ft)</div>
+            <div style={{ display:"flex", gap:6 }}>
+              {[["W","w"],["H","h"]].map(([lbl,key])=>(
+                <div key={key}>
+                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
+                  <input type="number" value={Math.round((selEl[key]||0)/GRID*100)/100}
+                    onChange={e=>updateEl(key,+e.target.value*GRID)}
+                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Color */}
+        {!isLight && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim }}>Color</div>
+            <input type="color" value={selEl.color||"#888888"} onChange={e=>updateEl("color",e.target.value)}
+              style={{ width:"100%", height:30, background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer" }}/>
+          </div>
+        )}
+
+        {/* Gel assignment for lighting */}
+        {isLight && (
+          <>
+            <div style={{ marginBottom:8 }}>
+              <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>GEL COLOR</div>
+              <select value={selEl.gelCode||"Open"} onChange={e=>updateEl("gelCode",e.target.value)}
+                style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
+                {GEL_PRESETS.map(g=><option key={g.code} value={g.code}>{g.code} — {g.name}</option>)}
+              </select>
+              {selEl.gelCode && (
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
+                  <div style={{ width:16, height:16, borderRadius:"50%", background:GEL_PRESETS.find(g=>g.code===selEl.gelCode)?.hex||"#888", border:"1px solid #555" }}/>
+                  <span style={{ fontSize:10, color:COLORS.textDim }}>{GEL_PRESETS.find(g=>g.code===selEl.gelCode)?.name}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ marginBottom:8 }}>
+              <div style={{ fontSize:9, color:COLORS.textDim }}>Show Beam</div>
+              <button onClick={()=>updateEl("focused",!selEl.focused)}
+                style={{ background:selEl.focused?COLORS.accent:COLORS.bg, color:selEl.focused?"#fff":COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 14px", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
+                {selEl.focused?"On":"Off"}
+              </button>
+            </div>
+            <div style={{ marginBottom:8 }}>
+              <div style={{ fontSize:9, color:COLORS.textDim }}>ASSIGN TO BATTEN</div>
+              <select value={selEl.battenId||""} onChange={e=>updateEl("battenId",e.target.value||null)}
+                style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
+                <option value="">— None —</option>
+                {battens.map(b=><option key={b.id} value={b.id}>{b.label}</option>)}
+              </select>
+            </div>
+          </>
+        )}
+
+        {/* Notes */}
+        {!isText && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim }}>Notes</div>
+            <textarea value={selEl.notes||""} onChange={e=>updateEl("notes",e.target.value)} rows={2}
+              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit", resize:"vertical", boxSizing:"border-box" }}/>
+          </div>
+        )}
+
+        {/* Layer */}
+        <div style={{ marginBottom:8 }}>
+          <div style={{ fontSize:9, color:COLORS.textDim }}>Layer</div>
+          <select value={selEl.layer||"set"} onChange={e=>updateEl("layer",e.target.value)}
+            style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
+            {LAYERS.map(l=><option key={l.id} value={l.id}>{l.label}</option>)}
+          </select>
+        </div>
+
+        {/* Position */}
+        {!isBatten && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>POSITION (ft)</div>
+            <div style={{ display:"flex", gap:6 }}>
+              {[["X","x"],["Y","y"]].map(([lbl,key])=>(
+                <div key={key}>
+                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
+                  <input type="number" value={Math.round((selEl[key]||0)/GRID*10)/10}
+                    onChange={e=>updateEl(key,+e.target.value*GRID)}
+                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Batten position — endpoints + depth, editable numerically as well as by dragging */}
+        {isBatten && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>POSITION (ft)</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {[["X1 (SR)","x1"],["X2 (SL)","x2"]].map(([lbl,key])=>(
+                <div key={key}>
+                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
+                  <input type="number" value={Math.round((selEl[key]||0)/GRID*10)/10}
+                    onChange={e=>updateEl(key,+e.target.value*GRID)}
+                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+                </div>
+              ))}
+              <div>
+                <div style={{ fontSize:9, color:COLORS.textDim }}>Depth (Y)</div>
+                <input type="number" value={Math.round((selEl.y1||0)/GRID*10)/10}
+                  onChange={e=>{ const v=+e.target.value*GRID; updateEl("y1",v); updateEl("y2",v); }}
+                  style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+              </div>
+            </div>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginTop:5 }}>
+              Length: {(Math.hypot((selEl.x2||0)-(selEl.x1||0), (selEl.y2||0)-(selEl.y1||0))/GRID).toFixed(1)}'
+            </div>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginTop:3 }}>
+              Tip: drag the pipe on the canvas to move it, or drag the gold endpoint handles to resize.
+            </div>
+          </div>
+        )}
+
+        <button onClick={()=>{setElements(prev=>prev.filter(e=>e.id!==selected));setSelected(null);}}
+          style={{ marginTop:12, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
+          🗑 Delete Element
+        </button>
+      </div>
+    );
+  };
+
 // ── Main app ──────────────────────────────────────────────────────────────────
 export default function StageDesigner() {
   const svgRef = useRef(null);
@@ -881,701 +1571,23 @@ export default function StageDesigner() {
   const lightingEls = elements.filter(e=>e.category==="lighting"&&e.channel).sort((a,b)=>(a.channel||999)-(b.channel||999));
   const battens = elements.filter(e=>e.type==="batten");
 
-  const Btn = ({onClick,children,active,danger,title}) => (
-    <button onClick={onClick} title={title}
-      style={{ background:danger?"#3a1010":active?COLORS.accent:"transparent",
-               color:danger?COLORS.accent:active?"#fff":COLORS.textDim,
-               border:`1px solid ${danger?COLORS.accent:active?COLORS.accent:COLORS.border}`,
-               borderRadius:5, padding:"4px 9px", cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
-      {children}
-    </button>
-  );
-
-  // ── Venue Editor modal ────────────────────────────────────────────────────
-  const VenueEditorModal = () => {
-    const [draft, setDraft] = useState({ ...venue });
-    const [activeTab, setActiveTab] = useState("config");
-    const [editingZone, setEditingZone] = useState(null);
-    const [editingVom, setEditingVom] = useState(null);
-
-    const upd = (k, v) => setDraft(d => ({ ...d, [k]: v }));
-    const applyPreset = (presetKey) => {
-      const p = VENUE_CONFIGS[presetKey];
-      setDraft(d => ({
-        ...d, config: p.config,
-        roomW: p.roomW, roomH: p.roomH,
-        stageOffX: p.stageOffX, stageOffY: p.stageOffY,
-        audience: JSON.parse(JSON.stringify(p.audience)),
-        // Shape features
-        curvedApron: p.curvedApron || false,
-        apronRadius: p.apronRadius || 17.75,
-        apronDepth:  p.apronDepth  || 4.833,
-        notch:       p.notch       || false,
-        notchW:      p.notchW      || 13.875,
-        notchD:      p.notchD      || 4.5,
-      }));
-      setStageW(p.stageW); setStageH(p.stageH);
-    };
-
-    const previewScale = 3.5;
-    const pW = draft.roomW * previewScale, pH = draft.roomH * previewScale;
-    const sX = (draft.stageOffX||0)*previewScale, sY = (draft.stageOffY||0)*previewScale;
-    const sSW = stageW * previewScale, sSH = stageH * previewScale;
-
-    const tabStyle = (id) => ({
-      padding: "7px 14px", background: activeTab===id ? COLORS.bg : "transparent",
-      color: activeTab===id ? COLORS.accent : COLORS.textDim, border:"none", cursor:"pointer",
-      fontSize:11, fontFamily:"inherit", borderBottom: activeTab===id ? `2px solid ${COLORS.accent}` : "2px solid transparent",
-    });
-    const fieldStyle = { width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"5px 7px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" };
-    const labelStyle = { fontSize:9, color:COLORS.textDim, marginBottom:3, textTransform:"uppercase", letterSpacing:0.5 };
-
-    return (
-      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, width:780, maxWidth:"96vw", maxHeight:"90vh", display:"flex", flexDirection:"column" }}>
-
-          {/* Header */}
-          <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
-            <span style={{ flex:1, fontSize:14, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>🏛 VENUE SPACE EDITOR</span>
-            <button onClick={()=>setShowVenueEditor(false)} style={{ background:"transparent", color:COLORS.textDim, border:"none", fontSize:20, cursor:"pointer" }}>✕</button>
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display:"flex", borderBottom:`1px solid ${COLORS.border}` }}>
-            {[["config","Configuration"],["room","Room Shape"],["audience","Seating"],["access","Access"]].map(([id,lbl])=>(
-              <button key={id} style={tabStyle(id)} onClick={()=>setActiveTab(id)}>{lbl}</button>
-            ))}
-          </div>
-
-          <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
-
-            {/* Left: controls */}
-            <div style={{ flex:1, overflowY:"auto", padding:18 }}>
-
-              {/* ── Config tab ── */}
-              {activeTab === "config" && (
-                <div>
-                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Choose a staging configuration preset to set up your room quickly. You can customize everything after.</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20 }}>
-                    {Object.entries(VENUE_CONFIGS).map(([key,cfg])=>(
-                      <div key={key} onClick={()=>applyPreset(key)}
-                        style={{ padding:"10px 12px", background: draft.config===key ? "#1a2a3a" : COLORS.bg,
-                          border:`1px solid ${draft.config===key ? COLORS.accent : COLORS.border}`,
-                          borderRadius:6, cursor:"pointer", transition:"all 0.15s" }}
-                        onMouseEnter={e=>{ if(draft.config!==key) e.currentTarget.style.borderColor=COLORS.hover; }}
-                        onMouseLeave={e=>{ if(draft.config!==key) e.currentTarget.style.borderColor=COLORS.border; }}>
-                        <div style={{ fontSize:18, marginBottom:3 }}>{cfg.icon}</div>
-                        <div style={{ fontSize:12, fontWeight:"bold", color: draft.config===key ? COLORS.accent : COLORS.text }}>{cfg.label}</div>
-                        <div style={{ fontSize:10, color:COLORS.textDim, marginTop:2 }}>{cfg.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>STAGE DIMENSIONS</div>
-                  <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-                    {[["Stage Width (ft)","stageW",stageW,setStageW],["Stage Depth (ft)","stageH",stageH,setStageH]].map(([lbl,key,val,setter])=>(
-                      <div key={key} style={{ flex:1 }}>
-                        <div style={labelStyle}>{lbl}</div>
-                        <input type="number" value={val} min={8} max={300} onChange={e=>setter(+e.target.value)} style={fieldStyle}/>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>ROOM DIMENSIONS</div>
-                  <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-                    {[["Room Width (ft)","roomW"],["Room Depth (ft)","roomH"]].map(([lbl,key])=>(
-                      <div key={key} style={{ flex:1 }}>
-                        <div style={labelStyle}>{lbl}</div>
-                        <input type="number" value={draft[key]||60} min={10} max={500} onChange={e=>upd(key,+e.target.value)} style={fieldStyle}/>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>STAGE POSITION WITHIN ROOM</div>
-                  <div style={{ display:"flex", gap:10, marginBottom:8 }}>
-                    {[["Offset from SR Wall (ft)","stageOffX"],["Offset from US Wall (ft)","stageOffY"]].map(([lbl,key])=>(
-                      <div key={key} style={{ flex:1 }}>
-                        <div style={labelStyle}>{lbl}</div>
-                        <input type="number" value={draft[key]||0} min={0} max={100} onChange={e=>upd(key,+e.target.value)} style={fieldStyle}/>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ marginBottom:12 }}>
-                    <div style={labelStyle}>Total House Seats</div>
-                    <input type="number" value={draft.houseSeats||0} min={0} max={5000} onChange={e=>upd("houseSeats",+e.target.value)} style={{ ...fieldStyle, width:120 }}/>
-                  </div>
-
-                  <div style={{ marginBottom:12 }}>
-                    <div style={labelStyle}>Upstage Orientation</div>
-                    <div style={{ display:"flex", gap:6 }}>
-                      {[["N","Top (default)"],["S","Bottom"],["W","Left"],["E","Right"]].map(([v,lbl])=>(
-                        <button key={v} onClick={()=>upd("orientation",v)}
-                          style={{ flex:1, padding:"5px 4px", fontSize:10, background:draft.orientation===v?COLORS.accent:"transparent", color:draft.orientation===v?"#fff":COLORS.textDim, border:`1px solid ${draft.orientation===v?COLORS.accent:COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-                    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:COLORS.text, cursor:"pointer" }}>
-                      <input type="checkbox" checked={draft.showRoom!==false} onChange={e=>upd("showRoom",e.target.checked)}/> Show room outline
-                    </label>
-                    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:COLORS.text, cursor:"pointer" }}>
-                      <input type="checkbox" checked={draft.showAudience!==false} onChange={e=>upd("showAudience",e.target.checked)}/> Show audience zones
-                    </label>
-                  </div>
-
-                  {/* ── Stage shape ── */}
-                  <div style={{ fontSize:9, color:COLORS.accent, marginBottom:8, letterSpacing:1 }}>STAGE SHAPE</div>
-
-                  {/* Curved apron */}
-                  <div style={{ background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
-                    <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:COLORS.text, cursor:"pointer", marginBottom: draft.curvedApron ? 12 : 0 }}>
-                      <input type="checkbox" checked={!!draft.curvedApron} onChange={e=>upd("curvedApron",e.target.checked)}/>
-                      <span style={{ fontWeight:"bold" }}>Curved Downstage Apron</span>
-                    </label>
-                    {draft.curvedApron && (
-                      <div style={{ display:"flex", gap:10 }}>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>ARC RADIUS (ft)</div>
-                          <input type="number" value={draft.apronRadius??17.75} min={5} max={100} step={0.25}
-                            onChange={e=>upd("apronRadius",+e.target.value)}
-                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 17.75</div>
-                        </div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>DEPTH AT CENTER (ft)</div>
-                          <input type="number" value={draft.apronDepth??4.833} min={0.5} max={20} step={0.083}
-                            onChange={e=>upd("apronDepth",+e.target.value)}
-                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 4.83 (4'10")</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* US Notch */}
-                  <div style={{ background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
-                    <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:COLORS.text, cursor:"pointer", marginBottom: draft.notch ? 12 : 0 }}>
-                      <input type="checkbox" checked={!!draft.notch} onChange={e=>upd("notch",e.target.checked)}/>
-                      <span style={{ fontWeight:"bold" }}>Upstage Recessed Section</span>
-                    </label>
-                    {draft.notch && (
-                      <div style={{ display:"flex", gap:10 }}>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>RECESSED CENTER WIDTH (ft)</div>
-                          <input type="number" value={draft.notchW??13.875} min={1} max={50} step={0.083}
-                            onChange={e=>upd("notchW",+e.target.value)}
-                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 13.875 (13'10½") — center section</div>
-                        </div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>WING STEP DEPTH (ft)</div>
-                          <input type="number" value={draft.notchD??4.5} min={0.5} max={20} step={0.083}
-                            onChange={e=>upd("notchD",+e.target.value)}
-                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 4.5 (4'6") — how far wings step DS</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── Room tab ── */}
-              {activeTab === "room" && (
-                <div>
-                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:14 }}>Customize room colors and appearance.</div>
-                  <div style={{ display:"flex", gap:12, marginBottom:14 }}>
-                    <div style={{ flex:1 }}>
-                      <div style={labelStyle}>Room Fill Color</div>
-                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        <input type="color" value={draft.roomColor||"#111118"} onChange={e=>upd("roomColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
-                        <input value={draft.roomColor||"#111118"} onChange={e=>upd("roomColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
-                      </div>
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={labelStyle}>Room Border Color</div>
-                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        <input type="color" value={draft.roomBorderColor||"#3a3a5a"} onChange={e=>upd("roomBorderColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
-                        <input value={draft.roomBorderColor||"#3a3a5a"} onChange={e=>upd("roomBorderColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <div style={labelStyle}>Default Audience Zone Color</div>
-                    <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:16 }}>
-                      <input type="color" value={draft.audienceColor||"#1a2a1a"} onChange={e=>upd("audienceColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
-                      <input value={draft.audienceColor||"#1a2a1a"} onChange={e=>upd("audienceColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
-                    </div>
-                  </div>
-                  <div style={{ padding:12, background:COLORS.bg, borderRadius:6, fontSize:11, color:COLORS.textDim, border:`1px solid ${COLORS.border}` }}>
-                    💡 Tip: For non-rectangular rooms (L-shaped, hexagonal, etc.), use the Wall drawing tool on the canvas to draw the room boundary as architectural walls on the Set layer.
-                  </div>
-                </div>
-              )}
-
-              {/* ── Audience / Seating tab ── */}
-              {activeTab === "audience" && (
-                <div>
-                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Define audience seating zones. Each zone appears as a shaded rectangle with seat row lines.</div>
-                  <button onClick={()=>{
-                    const newZone = { x:2, y: (draft.roomH||50)-15, w: (draft.roomW||50)-4, h:12, label:`Zone ${(draft.audience||[]).length+1}`, seats:80, color:"" };
-                    upd("audience", [...(draft.audience||[]), newZone]);
-                    setEditingZone((draft.audience||[]).length);
-                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
-                    + Add Seating Zone
-                  </button>
-
-                  {(draft.audience||[]).length === 0 && (
-                    <div style={{ color:COLORS.textDim, fontSize:11, padding:20, textAlign:"center" }}>No seating zones defined yet.</div>
-                  )}
-
-                  {(draft.audience||[]).map((az,i)=>(
-                    <div key={i} style={{ background:COLORS.bg, border:`1px solid ${editingZone===i?COLORS.accent:COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                        <div style={{ flex:1, fontSize:12, fontWeight:"bold", color:COLORS.text }}>{az.label}</div>
-                        <button onClick={()=>setEditingZone(editingZone===i?null:i)} style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
-                          {editingZone===i?"▲ Collapse":"▼ Edit"}
-                        </button>
-                        <button onClick={()=>{ const a=[...draft.audience]; a.splice(i,1); upd("audience",a); if(editingZone===i)setEditingZone(null); }}
-                          style={{ fontSize:10, padding:"3px 8px", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
-                      </div>
-                      {editingZone===i && (
-                        <div>
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                            {[["Label","label","text"],["Seat Count","seats","number"],["X from SR (ft)","x","number"],["Y from US (ft)","y","number"],["Width (ft)","w","number"],["Height (ft)","h","number"]].map(([lbl,key,type])=>(
-                              <div key={key}>
-                                <div style={labelStyle}>{lbl}</div>
-                                <input type={type} value={az[key]??""} onChange={e=>{
-                                  const a=[...draft.audience];
-                                  a[i]={...a[i],[key]:type==="number"?+e.target.value:e.target.value};
-                                  upd("audience",a);
-                                }} style={fieldStyle}/>
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{ marginTop:8 }}>
-                            <div style={labelStyle}>Zone Color (leave blank for default)</div>
-                            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                              <input type="color" value={az.color||draft.audienceColor||"#1a2a1a"} onChange={e=>{ const a=[...draft.audience]; a[i]={...a[i],color:e.target.value}; upd("audience",a); }}
-                                style={{ width:40, height:28, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
-                              <button onClick={()=>{ const a=[...draft.audience]; a[i]={...a[i],color:""}; upd("audience",a); }}
-                                style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>Reset to default</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ── Access / Vomitories tab ── */}
-              {activeTab === "access" && (
-                <div>
-                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Add vomitory entrances / exits cut through the room walls. Position is expressed as a fraction (0=SR/US edge, 1=SL/DS edge).</div>
-                  <button onClick={()=>{
-                    const newV = { wall:"S", pos:0.5, w:4, label:`Vom ${(draft.vomitories||[]).length+1}` };
-                    upd("vomitories", [...(draft.vomitories||[]), newV]);
-                    setEditingVom((draft.vomitories||[]).length);
-                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
-                    + Add Vomitory
-                  </button>
-
-                  {(draft.vomitories||[]).length === 0 && (
-                    <div style={{ color:COLORS.textDim, fontSize:11, padding:20, textAlign:"center" }}>No vomitories defined.</div>
-                  )}
-
-                  {(draft.vomitories||[]).map((vom,i)=>(
-                    <div key={i} style={{ background:COLORS.bg, border:`1px solid ${editingVom===i?COLORS.accent:COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: editingVom===i?8:0 }}>
-                        <div style={{ flex:1, fontSize:12, color:COLORS.text }}>{vom.label||`Vom ${i+1}`} — Wall: {vom.wall}</div>
-                        <button onClick={()=>setEditingVom(editingVom===i?null:i)} style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
-                          {editingVom===i?"▲":"▼ Edit"}
-                        </button>
-                        <button onClick={()=>{ const v=[...draft.vomitories]; v.splice(i,1); upd("vomitories",v); }}
-                          style={{ fontSize:10, padding:"3px 8px", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
-                      </div>
-                      {editingVom===i && (
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                          <div>
-                            <div style={labelStyle}>Label</div>
-                            <input value={vom.label||""} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],label:e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
-                          </div>
-                          <div>
-                            <div style={labelStyle}>Wall</div>
-                            <select value={vom.wall} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],wall:e.target.value}; upd("vomitories",v); }} style={fieldStyle}>
-                              <option value="N">North (Upstage)</option>
-                              <option value="S">South (Downstage)</option>
-                              <option value="W">West (SR)</option>
-                              <option value="E">East (SL)</option>
-                            </select>
-                          </div>
-                          <div>
-                            <div style={labelStyle}>Position (0–1)</div>
-                            <input type="number" min={0} max={1} step={0.05} value={vom.pos??0.5} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],pos:+e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
-                          </div>
-                          <div>
-                            <div style={labelStyle}>Opening Width (ft)</div>
-                            <input type="number" min={2} max={30} value={vom.w??4} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],w:+e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Right: live preview */}
-            <div style={{ width:220, borderLeft:`1px solid ${COLORS.border}`, padding:14, background:COLORS.bg, display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
-              <div style={{ fontSize:9, color:COLORS.textDim, letterSpacing:1, marginBottom:4 }}>LIVE PREVIEW</div>
-              <svg width={pW} height={pH} style={{ border:`1px solid ${COLORS.border}`, borderRadius:4, display:"block", maxWidth:"100%" }}>
-                {/* Room */}
-                <rect x={0} y={0} width={pW} height={pH} fill={draft.roomColor||"#111118"} stroke={draft.roomBorderColor||"#3a3a5a"} strokeWidth={2}/>
-                {/* Audience zones */}
-                {(draft.audience||[]).map((az,i)=>(
-                  <rect key={i} x={az.x*previewScale} y={az.y*previewScale} width={az.w*previewScale} height={az.h*previewScale}
-                    fill={az.color||draft.audienceColor||"#1a2a1a"} stroke="#3a5a3a" strokeWidth={1}/>
-                ))}
-                {/* Audience labels */}
-                {(draft.audience||[]).map((az,i)=>(
-                  <text key={i} x={(az.x+az.w/2)*previewScale} y={(az.y+az.h/2)*previewScale} fill="#4a7a4a" fontSize={7} textAnchor="middle" dominantBaseline="middle">{az.label}</text>
-                ))}
-                {/* Stage */}
-                {(() => {
-                  const psD = (draft.apronDepth||4.833)*previewScale;
-                  const psR = (sSW*sSW/4 + psD*psD)/(2*psD);
-                  const pnW = (draft.notchW||13.875)*previewScale;
-                  const pnD = (draft.notchD||4.5)*previewScale;
-                  const pnX1 = sX+(sSW-pnW)/2, pnX2 = sX+(sSW+pnW)/2;
-                  let pd;
-                  if (draft.curvedApron && draft.notch) {
-                    pd = `M ${sX},${sY+pnD} L ${pnX1},${sY+pnD} L ${pnX1},${sY} L ${pnX2},${sY} L ${pnX2},${sY+pnD} L ${sX+sSW},${sY+pnD} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
-                  } else if (draft.curvedApron) {
-                    pd = `M ${sX},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
-                  } else if (draft.notch) {
-                    pd = `M ${sX},${sY+pnD} L ${pnX1},${sY+pnD} L ${pnX1},${sY} L ${pnX2},${sY} L ${pnX2},${sY+pnD} L ${sX+sSW},${sY+pnD} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
-                  } else {
-                    pd = `M ${sX},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
-                  }
-                  return <path d={pd} fill={COLORS.stage} stroke={COLORS.stageEdge} strokeWidth={2}/>;
-                })()}
-                <text x={sX+sSW/2} y={sY+sSH/2} fill={COLORS.stageEdge} fontSize={7} textAnchor="middle" dominantBaseline="middle">STAGE</text>
-                {/* Plasterline — downstage edge of the main deck, where the apron begins */}
-                <line x1={sX} y1={sY+sSH} x2={sX+sSW} y2={sY+sSH} stroke={COLORS.stageEdge} strokeWidth={1.5} strokeDasharray="4,3"/>
-              </svg>
-              <div style={{ fontSize:9, color:COLORS.textDim, lineHeight:1.6 }}>
-                Room: {draft.roomW}' × {draft.roomH}'<br/>
-                Stage: {stageW}' × {stageH}'<br/>
-                Seats: {draft.houseSeats||0}<br/>
-                Config: {VENUE_CONFIGS[draft.config]?.label||draft.config}
-              </div>
-              {/* Quick audience adder */}
-              <div style={{ marginTop:"auto", fontSize:9, color:COLORS.textDim }}>
-                Audience zones: {(draft.audience||[]).length}
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div style={{ display:"flex", justifyContent:"flex-end", gap:8, padding:"12px 18px", borderTop:`1px solid ${COLORS.border}` }}>
-            <button onClick={()=>setShowVenueEditor(false)} style={{ padding:"7px 18px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Cancel</button>
-            <button onClick={()=>{ setVenue(draft); setShowVenueEditor(false); }}
-              style={{ padding:"7px 20px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:"bold" }}>
-              ✓ Apply Venue
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ── Project info modal ────────────────────────────────────────────────────
-  const ProjectInfoModal = () => (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:24, width:420, maxWidth:"90vw" }}>
-        <div style={{ fontSize:13, fontWeight:"bold", color:COLORS.accent, marginBottom:16, letterSpacing:1 }}>PROJECT INFORMATION</div>
-        {[["Production Title","title"],["Venue","venue"],["Lighting Designer","designer"],["Director","director"],["Revision #","revision"]].map(([lbl,key])=>(
-          <div key={key} style={{ marginBottom:10 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>{lbl}</div>
-            <input value={projectInfo[key]||""} onChange={e=>setProjectInfo(p=>({...p,[key]:e.target.value}))}
-              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"6px 8px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-          </div>
-        ))}
-        <div style={{ display:"flex", gap:8, marginTop:16, justifyContent:"flex-end" }}>
-          <Btn onClick={()=>setShowProjectInfo(false)}>Cancel</Btn>
-          <Btn active onClick={()=>setShowProjectInfo(false)}>Save</Btn>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Channel Schedule modal ────────────────────────────────────────────────
-  const ScheduleModal = () => (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:0, width:860, maxWidth:"95vw", maxHeight:"85vh", display:"flex", flexDirection:"column" }}>
-        <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
-          <span style={{ flex:1, fontSize:13, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>INSTRUMENT SCHEDULE — {projectInfo.title||"Untitled"}</span>
-          <Btn active onClick={()=>generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo)}>🖨 Print / PDF</Btn>
-          <button onClick={()=>setShowSchedule(false)} style={{ marginLeft:8, background:"transparent", color:COLORS.textDim, border:"none", fontSize:18, cursor:"pointer" }}>✕</button>
-        </div>
-        <div style={{ flex:1, overflowY:"auto", padding:16 }}>
-          {lightingEls.length === 0
-            ? <div style={{ textAlign:"center", padding:40, color:COLORS.textDim }}>No lighting fixtures in plot yet.</div>
-            : <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                <thead>
-                  <tr style={{ background:COLORS.bg }}>
-                    {["Ch","Dimmer","Fixture Type","Label","Batten","Gel","Angle","X (ft)","Y (ft)","Notes"].map(h=>(
-                      <th key={h} style={{ padding:"6px 10px", textAlign:"left", color:COLORS.textDim, fontSize:9, textTransform:"uppercase", letterSpacing:0.5, borderBottom:`1px solid ${COLORS.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {lightingEls.map(f=>{
-                    const gel = GEL_PRESETS.find(g=>g.code===f.gelCode)||{code:"Open",name:"Open White",hex:"#fff"};
-                    const batten = battens.find(b=>b.id===f.battenId);
-                    return (
-                      <tr key={f.id} onClick={()=>{setSelected(f.id);setShowSchedule(false);setSidebarTab("props");}}
-                        style={{ cursor:"pointer", borderBottom:`1px solid ${COLORS.border}` }}
-                        onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
-                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <td style={{ padding:"5px 10px", fontWeight:"bold", color:COLORS.accent }}>{f.channel}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.dimmer||"—"}</td>
-                        <td style={{ padding:"5px 10px" }}>{FIXTURE_DEFS[f.type]?.label||f.type}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.text }}>{f.label}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{batten?.label||"—"}</td>
-                        <td style={{ padding:"5px 10px" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                            <div style={{ width:12, height:12, borderRadius:"50%", background:gel.hex, border:"1px solid #666", flexShrink:0 }}/>
-                            <span style={{ color:COLORS.textDim, fontSize:10 }}>{gel.code}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.focusAngle}°</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{((f.x||0)/GRID).toFixed(1)}'</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{((f.y||0)/GRID).toFixed(1)}'</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.notes||""}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-          }
-          {battens.length > 0 && (
-            <>
-              <div style={{ fontSize:10, color:COLORS.accent, letterSpacing:1, marginTop:20, marginBottom:8, borderTop:`1px solid ${COLORS.border}`, paddingTop:12 }}>BATTEN SCHEDULE</div>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                <thead>
-                  <tr style={{ background:COLORS.bg }}>
-                    {["Name","Range","DS Depth","Trim Height","Fixtures"].map(h=>(
-                      <th key={h} style={{ padding:"6px 10px", textAlign:"left", color:COLORS.textDim, fontSize:9, textTransform:"uppercase", borderBottom:`1px solid ${COLORS.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {battens.map(b=>{
-                    const fx = lightingEls.filter(f=>f.battenId===b.id);
-                    const x1ft = ((b.x1)/GRID).toFixed(1), x2ft = ((b.x2)/GRID).toFixed(1);
-                    const yft = ((b.y1)/GRID).toFixed(1);
-                    return (
-                      <tr key={b.id} style={{ borderBottom:`1px solid ${COLORS.border}` }}>
-                        <td style={{ padding:"5px 10px", fontWeight:"bold", color:COLORS.batten }}>{b.label}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{x1ft}' → {x2ft}'</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{yft}'</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{b.trim||"—"}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{fx.length>0?fx.map(f=>`Ch ${f.channel}`).join(", "):"None assigned"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Properties panel content ──────────────────────────────────────────────
-  const PropsPanel = () => {
-    if (!selEl) return (
-      <div style={{ padding:16, fontSize:11, color:COLORS.textDim, textAlign:"center", marginTop:20 }}>
-        Select an element to edit its properties
-      </div>
-    );
-
-    const isBatten = selEl.type === "batten";
-    const isLight = selEl.category === "lighting";
-    const isText = selEl.type === "textlabel";
-
-    return (
-      <div style={{ flex:1, overflowY:"auto", padding:10 }}>
-        <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>ELEMENT PROPERTIES</div>
-
-        {/* Label / name */}
-        {[
-          ["Label / Name","label","text"],
-          ...(isLight ? [
-            ["Channel #","channel","number"],
-            ["Dimmer","dimmer","text"],
-            ["Focus Angle °","focusAngle","number"],
-          ] : []),
-          ...(isBatten ? [["Trim Height (ft)","trim","text"]] : []),
-          ...(!isBatten ? [["Rotation °","rotation","number"]] : []),
-          ...(isText ? [["Font Size","fontSize","number"]] : []),
-        ].map(([lbl,key,type])=>(
-          <div key={key} style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
-            <input type={type} value={selEl[key]??""} onChange={e=>updateEl(key, type==="number"?+e.target.value:e.target.value)}
-              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-          </div>
-        ))}
-
-        {/* Width / Height (ft) — converted from internal px units, same pattern as Position */}
-        {!isBatten && !isText && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>SIZE (ft)</div>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["W","w"],["H","h"]].map(([lbl,key])=>(
-                <div key={key}>
-                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
-                  <input type="number" value={Math.round((selEl[key]||0)/GRID*100)/100}
-                    onChange={e=>updateEl(key,+e.target.value*GRID)}
-                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Color */}
-        {!isLight && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>Color</div>
-            <input type="color" value={selEl.color||"#888888"} onChange={e=>updateEl("color",e.target.value)}
-              style={{ width:"100%", height:30, background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer" }}/>
-          </div>
-        )}
-
-        {/* Gel assignment for lighting */}
-        {isLight && (
-          <>
-            <div style={{ marginBottom:8 }}>
-              <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>GEL COLOR</div>
-              <select value={selEl.gelCode||"Open"} onChange={e=>updateEl("gelCode",e.target.value)}
-                style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
-                {GEL_PRESETS.map(g=><option key={g.code} value={g.code}>{g.code} — {g.name}</option>)}
-              </select>
-              {selEl.gelCode && (
-                <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
-                  <div style={{ width:16, height:16, borderRadius:"50%", background:GEL_PRESETS.find(g=>g.code===selEl.gelCode)?.hex||"#888", border:"1px solid #555" }}/>
-                  <span style={{ fontSize:10, color:COLORS.textDim }}>{GEL_PRESETS.find(g=>g.code===selEl.gelCode)?.name}</span>
-                </div>
-              )}
-            </div>
-            <div style={{ marginBottom:8 }}>
-              <div style={{ fontSize:9, color:COLORS.textDim }}>Show Beam</div>
-              <button onClick={()=>updateEl("focused",!selEl.focused)}
-                style={{ background:selEl.focused?COLORS.accent:COLORS.bg, color:selEl.focused?"#fff":COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 14px", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-                {selEl.focused?"On":"Off"}
-              </button>
-            </div>
-            <div style={{ marginBottom:8 }}>
-              <div style={{ fontSize:9, color:COLORS.textDim }}>ASSIGN TO BATTEN</div>
-              <select value={selEl.battenId||""} onChange={e=>updateEl("battenId",e.target.value||null)}
-                style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
-                <option value="">— None —</option>
-                {battens.map(b=><option key={b.id} value={b.id}>{b.label}</option>)}
-              </select>
-            </div>
-          </>
-        )}
-
-        {/* Notes */}
-        {!isText && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>Notes</div>
-            <textarea value={selEl.notes||""} onChange={e=>updateEl("notes",e.target.value)} rows={2}
-              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit", resize:"vertical", boxSizing:"border-box" }}/>
-          </div>
-        )}
-
-        {/* Layer */}
-        <div style={{ marginBottom:8 }}>
-          <div style={{ fontSize:9, color:COLORS.textDim }}>Layer</div>
-          <select value={selEl.layer||"set"} onChange={e=>updateEl("layer",e.target.value)}
-            style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
-            {LAYERS.map(l=><option key={l.id} value={l.id}>{l.label}</option>)}
-          </select>
-        </div>
-
-        {/* Position */}
-        {!isBatten && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>POSITION (ft)</div>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["X","x"],["Y","y"]].map(([lbl,key])=>(
-                <div key={key}>
-                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
-                  <input type="number" value={Math.round((selEl[key]||0)/GRID*10)/10}
-                    onChange={e=>updateEl(key,+e.target.value*GRID)}
-                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Batten position — endpoints + depth, editable numerically as well as by dragging */}
-        {isBatten && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>POSITION (ft)</div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-              {[["X1 (SR)","x1"],["X2 (SL)","x2"]].map(([lbl,key])=>(
-                <div key={key}>
-                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
-                  <input type="number" value={Math.round((selEl[key]||0)/GRID*10)/10}
-                    onChange={e=>updateEl(key,+e.target.value*GRID)}
-                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-                </div>
-              ))}
-              <div>
-                <div style={{ fontSize:9, color:COLORS.textDim }}>Depth (Y)</div>
-                <input type="number" value={Math.round((selEl.y1||0)/GRID*10)/10}
-                  onChange={e=>{ const v=+e.target.value*GRID; updateEl("y1",v); updateEl("y2",v); }}
-                  style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-              </div>
-            </div>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginTop:5 }}>
-              Length: {(Math.hypot((selEl.x2||0)-(selEl.x1||0), (selEl.y2||0)-(selEl.y1||0))/GRID).toFixed(1)}'
-            </div>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginTop:3 }}>
-              Tip: drag the pipe on the canvas to move it, or drag the gold endpoint handles to resize.
-            </div>
-          </div>
-        )}
-
-        <button onClick={()=>{setElements(prev=>prev.filter(e=>e.id!==selected));setSelected(null);}}
-          style={{ marginTop:12, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-          🗑 Delete Element
-        </button>
-      </div>
-    );
-  };
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:COLORS.bg, color:COLORS.text, fontFamily:"'Courier New',monospace", userSelect:"none", overflow:"hidden" }}>
 
-      {showProjectInfo && <ProjectInfoModal/>}
-      {showSchedule && <ScheduleModal/>}
-      {showVenueEditor && <VenueEditorModal/>}
+      {showProjectInfo && <ProjectInfoModal projectInfo={projectInfo} setProjectInfo={setProjectInfo} onClose={()=>setShowProjectInfo(false)}/>}
+      {showSchedule && <ScheduleModal projectInfo={projectInfo} elements={elements} stageW={stageW} stageH={stageH} lightingEls={lightingEls} battens={battens} setSelected={setSelected} setSidebarTab={setSidebarTab} onClose={()=>setShowSchedule(false)}/>}
+      {showVenueEditor && <VenueEditorModal venue={venue} stageW={stageW} stageH={stageH} setStageW={setStageW} setStageH={setStageH} onClose={()=>setShowVenueEditor(false)} onApply={(d)=>{setVenue(d); setShowVenueEditor(false);}}/>}
 
       {/* ── top bar ── */}
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", background:COLORS.panel, borderBottom:`1px solid ${COLORS.border}`, flexShrink:0, flexWrap:"wrap" }}>
+        <a href="https://apps.upstage.systems" title="Back to Apps.Upstage.Systems"
+          style={{ display:"flex", alignItems:"center", gap:4, color:COLORS.textDim, textDecoration:"none", fontSize:11, padding:"4px 8px", border:`1px solid ${COLORS.border}`, borderRadius:5, marginRight:2 }}
+          onMouseEnter={e=>{ e.currentTarget.style.color=COLORS.accent; e.currentTarget.style.borderColor=COLORS.accent; }}
+          onMouseLeave={e=>{ e.currentTarget.style.color=COLORS.textDim; e.currentTarget.style.borderColor=COLORS.border; }}>
+          ← Apps
+        </a>
         <span style={{ color:COLORS.accent, fontWeight:"bold", fontSize:14, letterSpacing:1, marginRight:4 }}>🎭 STAGE DESIGNER</span>
         {projectInfo.title && <span style={{ fontSize:11, color:COLORS.textDim }}>— {projectInfo.title}</span>}
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
@@ -1690,7 +1702,7 @@ export default function StageDesigner() {
             </div>
           )}
 
-          {sidebarTab === "props" && <PropsPanel/>}
+          {sidebarTab === "props" && <PropsPanel selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected}/>}
         </div>
 
         {/* ── canvas ── */}
