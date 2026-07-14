@@ -9,7 +9,7 @@ const COLORS = {
   accent: "#e94560", accentDim: "#a03040",
   stage: "#2a2a1a", stageEdge: "#5a5a3a",
   text: "#e8e0d0", textDim: "#8a8070",
-  grid: "#2a2a40", selected: "#ffd700", hover: "#88aaff",
+  grid: "#5a6a8a", selected: "#ffd700", hover: "#88aaff",
   batten: "#4a6a8a",
 };
 
@@ -48,6 +48,10 @@ const FIXTURE_DEFS = {
   hazer:       { label:"Hazer",        shape:"cloud",    color:"#aaddff", w:48, h:32 },
   moving_head: { label:"Moving Head",  shape:"diamond",  color:"#ff44ff", w:30, h:30 },
   strip_light: { label:"Strip Light",  shape:"strip",    color:"#ffee88", w:80, h:16 },
+};
+
+const BATTEN_DEFS = {
+  batten: { label: "Batten / Pipe", color: "#4a6a8a" },
 };
 
 const SET_DEFS = {
@@ -577,6 +581,21 @@ export default function StageDesigner() {
     if (sidebarTab !== "props") setSidebarTab("props");
   }, [activeLayer, elements, sidebarTab]);
 
+  // ── place batten (pick-and-place, same pattern as set/lighting elements) ───
+  const placeBatten = useCallback((cx, cy) => {
+    const battenCount = elements.filter(e => e.type === "batten").length + 1;
+    const halfLen = 5 * GRID; // default 10ft pipe, centered on click point
+    const el = {
+      id: uid(), type: "batten", category: "batten", layer: "battens",
+      x1: snap(cx - halfLen), y1: snap(cy), x2: snap(cx + halfLen), y2: snap(cy),
+      label: `Batten ${battenCount}`, color: COLORS.batten, trim: "", notes: "",
+    };
+    setElements(prev => [...prev, el]);
+    setSelected(el.id);
+    setTool("select");
+    if (sidebarTab !== "props") setSidebarTab("props");
+  }, [elements, sidebarTab]);
+
   // ── pointer events ────────────────────────────────────────────────────────
   const onPointerDown = useCallback((e) => {
     if (e.button === 1 || tool === "pan") {
@@ -757,10 +776,10 @@ export default function StageDesigner() {
   const gridLines = [];
   if (showGrid) {
     for (let gx=0; gx<=stageW; gx++) gridLines.push(
-      <line key={`gx${gx}`} x1={gx*GRID} y1={0} x2={gx*GRID} y2={SH} stroke={COLORS.grid} strokeWidth={gx%5===0?0.8:0.3}/>
+      <line key={`gx${gx}`} x1={gx*GRID} y1={0} x2={gx*GRID} y2={SH} stroke={COLORS.grid} strokeWidth={gx%5===0?1:0.5} opacity={gx%5===0?0.55:0.3}/>
     );
     for (let gy=0; gy<=stageH; gy++) gridLines.push(
-      <line key={`gy${gy}`} x1={0} y1={gy*GRID} x2={SW} y2={gy*GRID} stroke={COLORS.grid} strokeWidth={gy%5===0?0.8:0.3}/>
+      <line key={`gy${gy}`} x1={0} y1={gy*GRID} x2={SW} y2={gy*GRID} stroke={COLORS.grid} strokeWidth={gy%5===0?1:0.5} opacity={gy%5===0?0.55:0.3}/>
     );
   }
   const measureLabels = [];
@@ -1205,19 +1224,19 @@ export default function StageDesigner() {
                   const pnX1 = sX+(sSW-pnW)/2, pnX2 = sX+(sSW+pnW)/2;
                   let pd;
                   if (draft.curvedApron && draft.notch) {
-                    pd = `M ${sX},${sY} L ${pnX1},${sY} L ${pnX1},${sY+pnD} L ${pnX2},${sY+pnD} L ${pnX2},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
+                    pd = `M ${sX},${sY+pnD} L ${pnX1},${sY+pnD} L ${pnX1},${sY} L ${pnX2},${sY} L ${pnX2},${sY+pnD} L ${sX+sSW},${sY+pnD} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
                   } else if (draft.curvedApron) {
                     pd = `M ${sX},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
                   } else if (draft.notch) {
-                    pd = `M ${sX},${sY} L ${pnX1},${sY} L ${pnX1},${sY+pnD} L ${pnX2},${sY+pnD} L ${pnX2},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
+                    pd = `M ${sX},${sY+pnD} L ${pnX1},${sY+pnD} L ${pnX1},${sY} L ${pnX2},${sY} L ${pnX2},${sY+pnD} L ${sX+sSW},${sY+pnD} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
                   } else {
                     pd = `M ${sX},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
                   }
                   return <path d={pd} fill={COLORS.stage} stroke={COLORS.stageEdge} strokeWidth={2}/>;
                 })()}
                 <text x={sX+sSW/2} y={sY+sSH/2} fill={COLORS.stageEdge} fontSize={7} textAnchor="middle" dominantBaseline="middle">STAGE</text>
-                {/* Plasterline */}
-                <line x1={sX} y1={sY} x2={sX+sSW} y2={sY} stroke={COLORS.stageEdge} strokeWidth={1.5} strokeDasharray="4,3"/>
+                {/* Plasterline — downstage edge of the main deck, where the apron begins */}
+                <line x1={sX} y1={sY+sSH} x2={sX+sSW} y2={sY+sSH} stroke={COLORS.stageEdge} strokeWidth={1.5} strokeDasharray="4,3"/>
               </svg>
               <div style={{ fontSize:9, color:COLORS.textDim, lineHeight:1.6 }}>
                 Room: {draft.roomW}' × {draft.roomH}'<br/>
@@ -1375,10 +1394,6 @@ export default function StageDesigner() {
             ["Focus Angle °","focusAngle","number"],
           ] : []),
           ...(isBatten ? [["Trim Height (ft)","trim","text"]] : []),
-          ...(!isBatten && !isText ? [
-            ["Width (px)","w","number"],
-            ["Height (px)","h","number"],
-          ] : []),
           ...(!isBatten ? [["Rotation °","rotation","number"]] : []),
           ...(isText ? [["Font Size","fontSize","number"]] : []),
         ].map(([lbl,key,type])=>(
@@ -1388,6 +1403,23 @@ export default function StageDesigner() {
               style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
           </div>
         ))}
+
+        {/* Width / Height (ft) — converted from internal px units, same pattern as Position */}
+        {!isBatten && !isText && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>SIZE (ft)</div>
+            <div style={{ display:"flex", gap:6 }}>
+              {[["W","w"],["H","h"]].map(([lbl,key])=>(
+                <div key={key}>
+                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
+                  <input type="number" value={Math.round((selEl[key]||0)/GRID*100)/100}
+                    onChange={e=>updateEl(key,+e.target.value*GRID)}
+                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Color */}
         {!isLight && (
@@ -1524,7 +1556,7 @@ export default function StageDesigner() {
           {sidebarTab === "elements" && (
             <div style={{ flex:1, overflowY:"auto", padding:8 }}>
               <div style={{ display:"flex", gap:4, marginBottom:8 }}>
-                {[["set","Set"],["lighting","Lighting"]].map(([id,lbl])=>(
+                {[["set","Set"],["lighting","Lighting"],["batten","Battens"]].map(([id,lbl])=>(
                   <button key={id} onClick={()=>setActiveCat(id)}
                     style={{ flex:1, background:activeCat===id?COLORS.accent:"transparent", color:activeCat===id?"#fff":COLORS.textDim, border:`1px solid ${activeCat===id?COLORS.accent:COLORS.border}`, borderRadius:4, padding:"4px 0", cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>
                     {lbl}
@@ -1541,18 +1573,19 @@ export default function StageDesigner() {
                 </div>
               )}
               <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:4 }}>CLICK OR DRAG TO PLACE</div>
-              {Object.entries(activeCat==="set"?SET_DEFS:FIXTURE_DEFS).map(([key,def])=>(
+              {Object.entries(activeCat==="set"?SET_DEFS:activeCat==="lighting"?FIXTURE_DEFS:BATTEN_DEFS).map(([key,def])=>(
                 <div key={key} draggable
                   onDragStart={e=>e.dataTransfer.setData("elType",key)}
                   onClick={()=>{
                     const cx=(svgRef.current?.clientWidth/2-pan.x)/zoom;
                     const cy=(svgRef.current?.clientHeight/2-pan.y)/zoom;
-                    placeElement(key,activeCat,def,snap(cx),snap(cy));
+                    if (activeCat==="batten") placeBatten(snap(cx),snap(cy));
+                    else placeElement(key,activeCat,def,snap(cx),snap(cy));
                   }}
                   style={{ display:"flex", alignItems:"center", gap:7, padding:"5px 7px", marginBottom:3, background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", transition:"border-color 0.1s" }}
                   onMouseEnter={e=>e.currentTarget.style.borderColor=COLORS.accent}
                   onMouseLeave={e=>e.currentTarget.style.borderColor=COLORS.border}>
-                  <div style={{ width:11, height:11, borderRadius:activeCat==="lighting"?"50%":2, background:def.color, flexShrink:0 }}/>
+                  <div style={{ width:activeCat==="batten"?11:11, height:activeCat==="batten"?3:11, borderRadius:activeCat==="lighting"?"50%":2, background:def.color, flexShrink:0 }}/>
                   <span style={{ fontSize:11, color:COLORS.text }}>{def.label}</span>
                 </div>
               ))}
@@ -1607,9 +1640,10 @@ export default function StageDesigner() {
           onDrop={e=>{
             e.preventDefault();
             const type = e.dataTransfer.getData("elType"); if (!type) return;
+            const pt = svgPt(e.clientX, e.clientY);
+            if (activeCat==="batten" || type==="batten") { placeBatten(pt.x, pt.y); return; }
             const defs = activeCat==="set"?SET_DEFS:FIXTURE_DEFS;
             const def = defs[type]; if (!def) return;
-            const pt = svgPt(e.clientX, e.clientY);
             placeElement(type, activeCat, def, snap(pt.x), snap(pt.y));
           }}>
           <svg ref={svgRef} style={{ width:"100%", height:"100%", display:"block",
