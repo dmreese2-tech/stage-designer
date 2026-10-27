@@ -1155,7 +1155,7 @@ function ScheduleModal({ projectInfo, elements, stageW, stageH, lightingEls, bat
 }
 
 // ── Properties panel content ──────────────────────────────────────────────
-function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, selected, copySelected, pasteClipboard, duplicateSelected, hasClipboard }) {
+function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, selected, copySelected, pasteClipboard, duplicateSelected, hasClipboard, moveZ }) {
     if (!selEl) return (
       <div style={{ padding:16, fontSize:11, color:COLORS.textDim, textAlign:"center", marginTop:20 }}>
         Select an element to edit its properties
@@ -1329,6 +1329,19 @@ function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, select
             📋 Paste Copy
           </button>
         )}
+
+        {/* Stacking order */}
+        <div style={{ marginTop:10 }}>
+          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>ARRANGE  ( ] forward · [ back · Shift = all the way )</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
+            {[["⤒ To Front","front"],["↑ Forward","forward"],["↓ Backward","backward"],["⤓ To Back","back"]].map(([lbl,mode])=>(
+              <button key={mode} onClick={()=>moveZ(mode)}
+                style={{ background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"5px 0", cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <button onClick={()=>{setElements(prev=>prev.filter(e=>e.id!==selected));setSelected(null);}}
           style={{ marginTop:6, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
@@ -1537,6 +1550,33 @@ export default function StageDesigner() {
   // ── update element ────────────────────────────────────────────────────────
   const updateEl = (key, val) => setElements(prev => prev.map(e => e.id === selected ? { ...e, [key]: val } : e));
 
+  // ── z-order (stacking) ────────────────────────────────────────────────────
+  // Later in the array = drawn on top. Lighting is drawn in its own pass above
+  // all set pieces, so forward/backward only step past items in the same pass.
+  const moveZ = useCallback((mode) => {
+    if (!selected) return;
+    setElements(prev => {
+      const i = prev.findIndex(e => e.id === selected);
+      if (i < 0) return prev;
+      const isL = prev[i].category === "lighting";
+      const sameGroup = (e) => (e.category === "lighting") === isL;
+      const arr = [...prev];
+      const [item] = arr.splice(i, 1);
+      if (mode === "front") arr.push(item);
+      else if (mode === "back") arr.unshift(item);
+      else if (mode === "forward") {
+        let j = i;
+        while (j < arr.length && !sameGroup(arr[j])) j++;
+        if (j >= arr.length) arr.splice(i, 0, item); else arr.splice(j + 1, 0, item);
+      } else {
+        let j = i - 1;
+        while (j >= 0 && !sameGroup(arr[j])) j--;
+        if (j < 0) arr.splice(i, 0, item); else arr.splice(j, 0, item);
+      }
+      return arr;
+    });
+  }, [selected]);
+
   // ── copy / paste ──────────────────────────────────────────────────────────
   const [clipboard, setClipboard] = useState(null);
   const [pasteCount, setPasteCount] = useState(0);
@@ -1603,6 +1643,12 @@ export default function StageDesigner() {
       if (mod && e.key.toLowerCase() === "c" && selected) { copySelected(); e.preventDefault(); }
       if (mod && e.key.toLowerCase() === "v" && clipboard) { pasteClipboard(); e.preventDefault(); }
       if (mod && e.key.toLowerCase() === "d" && selected) { duplicateSelected(); e.preventDefault(); }
+      if (selected && !mod) {
+        if (e.key === "]") { moveZ("forward"); e.preventDefault(); }
+        if (e.key === "[") { moveZ("backward"); e.preventDefault(); }
+        if (e.key === "}") { moveZ("front"); e.preventDefault(); }   // Shift+]
+        if (e.key === "{") { moveZ("back"); e.preventDefault(); }    // Shift+[
+      }
       if (!mod) {
         if (e.key === "s") setTool("select");
         if (e.key === "w") setTool("wall");
@@ -1621,7 +1667,7 @@ export default function StageDesigner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, clipboard, copySelected, pasteClipboard, duplicateSelected]);
+  }, [selected, clipboard, copySelected, pasteClipboard, duplicateSelected, moveZ]);
 
   // ── JSON export / import ──────────────────────────────────────────────────
   const exportJSON = () => {
@@ -1897,7 +1943,7 @@ export default function StageDesigner() {
             </div>
           )}
 
-          {sidebarTab === "props" && <PropsPanel selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard}/>}
+          {sidebarTab === "props" && <PropsPanel selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard} moveZ={moveZ}/>}
         </div>
 
         {/* ── canvas ── */}
@@ -2137,8 +2183,8 @@ export default function StageDesigner() {
               })()}
 
               {/* Render elements — set/soft goods first, then lighting on top */}
-              {[...elements].filter(e=>e.category!=="lighting").reverse().map(renderEl)}
-              {[...elements].filter(e=>e.category==="lighting").reverse().map(renderEl)}
+              {[...elements].filter(e=>e.category!=="lighting").map(renderEl)}
+              {[...elements].filter(e=>e.category==="lighting").map(renderEl)}
 
               {/* Wall preview */}
               {drawingWall && <line x1={drawingWall.x1} y1={drawingWall.y1} x2={drawingWall.x2} y2={drawingWall.y2}
@@ -2155,7 +2201,7 @@ export default function StageDesigner() {
           </svg>
           {/* Hints */}
           <div style={{ position:"absolute", bottom:8, left:8, fontSize:9, color:COLORS.textDim, background:"rgba(22,33,62,0.9)", padding:"4px 8px", borderRadius:4, lineHeight:1.8 }}>
-            S=Select · W=Wall · B=Batten · D=Delete · P=Pan · L=Label · Del=Remove · Arrows=Nudge · Scroll=Zoom
+            S=Select · W=Wall · B=Batten · D=Delete · P=Pan · L=Label · Del=Remove · Arrows=Nudge · [ ]=Send Back/Forward · Scroll=Zoom
           </div>
           {/* Zoom level */}
           <div style={{ position:"absolute", bottom:8, right:8, fontSize:9, color:COLORS.textDim, background:"rgba(22,33,62,0.9)", padding:"4px 8px", borderRadius:4 }}>
