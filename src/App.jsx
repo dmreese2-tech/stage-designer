@@ -58,6 +58,7 @@ const SET_DEFS = {
   flat:      { label:"Flat",          color:"#8b7355", w:4,   h:80  },
   door_flat: { label:"Door Flat",     color:"#7a6245", w:4,   h:80  },
   platform:  { label:"Platform",      color:"#6b5e45", w:60,  h:40  },
+  tri_platform: { label:"Triangle Platform", color:"#6b5e45", w:80, h:80, shape:"triangle" },
   chair:     { label:"Chair",         color:"#5a4f3a", w:24,  h:24  },
   table:     { label:"Table",         color:"#6b5a3a", w:60,  h:30  },
   sofa:      { label:"Sofa",          color:"#5a4a4a", w:80,  h:32  },
@@ -285,7 +286,10 @@ function SetPieceSVG({ def, x, y, rotation=0, color, selected, label }) {
   const isDoor = label?.toLowerCase().includes("door");
   return (
     <g transform={`translate(${x},${y}) rotate(${rotation})`}>
-      <rect x={-hw} y={-hh} width={def.w} height={def.h} fill={color} stroke={stroke} strokeWidth={sw} rx={2}/>
+      {def.shape === "triangle"
+        // right triangle, 90° corner at lower-left; use Rotation to orient it
+        ? <polygon points={`${-hw},${hh} ${hw},${hh} ${-hw},${-hh}`} fill={color} stroke={stroke} strokeWidth={sw} strokeLinejoin="round"/>
+        : <rect x={-hw} y={-hh} width={def.w} height={def.h} fill={color} stroke={stroke} strokeWidth={sw} rx={2}/>}
       {isDoor && <path d={`M${-hw},${-hh} A${def.w},${def.w} 0 0 1 ${hw},${-hh}`} fill="none" stroke={stroke} strokeWidth={1} strokeDasharray="3,2"/>}
       {label?.toLowerCase().includes("stairs") && [0.25,0.5,0.75].map(t=>(
         <line key={t} x1={-hw} y1={-hh+def.h*t} x2={hw} y2={-hh+def.h*t} stroke={stroke} strokeWidth={0.8}/>
