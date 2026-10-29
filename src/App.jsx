@@ -549,6 +549,39 @@ function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo) 
   const battenCount = elements.filter(e => e.type === "batten").length;
   const setCount = elements.filter(e => e.category !== "lighting" && e.type !== "batten").length;
 
+  // ── Set piece schedule: name, dimensions, elevation ──
+  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const fmtFt = (px) => { const v = Math.round((px||0)/GRID*100)/100; return `${v}'`; };
+  const fmtElev = (inches) => {
+    const n = Number(inches) || 0;
+    return n === 0 ? "Floor" : `${Math.round(n*100)/100}"`;
+  };
+  const setPieces = elements.filter(e =>
+    e.category !== "lighting" && e.type !== "batten" && e.type !== "textlabel" && e.category !== "notes");
+  const setPieceRows = setPieces.map((p, i) => {
+    const isWall = p.type === "wall";
+    const name = p.label || SET_DEFS[p.type]?.label || p.type;
+    const kind = isWall ? "Wall" : (SET_DEFS[p.type]?.label || p.type);
+    const dims = isWall
+      ? `${fmtFt(Math.hypot((p.x2||0)-(p.x1||0),(p.y2||0)-(p.y1||0)))} long`
+      : `${fmtFt(p.w)} × ${fmtFt(p.h)}`;
+    return `
+      <tr>
+        <td style="text-align:center">${i+1}</td>
+        <td><strong>${esc(name)}</strong></td>
+        <td>${esc(kind)}</td>
+        <td style="text-align:center">${dims}</td>
+        <td style="text-align:center">${fmtElev(p.elevation)}</td>
+        <td>${esc(p.notes)}</td>
+      </tr>`;
+  }).join("");
+  const setScheduleHtml = setPieces.length ? `
+  <h2>Set Piece Schedule</h2>
+  <table>
+    <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Dimensions (W × D)</th><th>Elevation</th><th>Notes</th></tr></thead>
+    <tbody>${setPieceRows}</tbody>
+  </table>` : "";
+
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -578,6 +611,14 @@ function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo) 
 
   .plot-frame { border:1px solid #222; border-radius:4px; overflow:hidden; background:#1a1a2e; }
   .plot-frame svg { display:block; width:100%; height:auto; }
+
+  h2 { font-size:11pt; font-weight:900; text-transform:uppercase; letter-spacing:1.5px;
+       border-bottom:2px solid #222; padding-bottom:4px; margin:20px 0 10px; }
+  table { width:100%; border-collapse:collapse; font-size:8.5pt; margin-bottom:20px; }
+  th { background:#222; color:#fff; padding:5px 7px; font-size:7.5pt; text-transform:uppercase; letter-spacing:0.5px; border:1px solid #222; }
+  td { padding:4px 7px; border:1px solid #ccc; vertical-align:middle; }
+  tr:nth-child(even) td { background:#f8f8f8; }
+  tr { page-break-inside:avoid; }
 
   .print-btn { position:fixed; top:12px; right:12px; background:#e94560; color:#fff; border:none;
                padding:10px 20px; border-radius:6px; font-size:11pt; cursor:pointer; font-weight:bold; z-index:999; }
@@ -619,6 +660,8 @@ function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo) 
   <div class="plot-frame">
     ${svgString}
   </div>
+
+  ${setScheduleHtml}
 
   <footer>
     <span>Stage Designer App — Generated ${now}</span>
@@ -1210,6 +1253,17 @@ function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, select
           </div>
         )}
 
+        {/* Elevation — height of the top surface above the stage floor, in inches */}
+        {!isBatten && !isText && !isLight && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim }}>ELEVATION (in)</div>
+            <input type="number" min="0" step="1" value={selEl.elevation ?? 0}
+              onChange={e=>updateEl("elevation", Math.max(0, +e.target.value))}
+              style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+            <span style={{ fontSize:9, color:COLORS.textDim, marginLeft:6 }}>0 = on stage floor</span>
+          </div>
+        )}
+
         {/* Color */}
         {!isLight && (
           <div style={{ marginBottom:8 }}>
@@ -1414,6 +1468,7 @@ export default function StageDesigner() {
       dimmer: "", focusAngle: 45, focused: false,
       gelCode: "Open", notes: "",
       w: defObj.w, h: defObj.h,
+      elevation: 0,
     };
     setElements(prev => [...prev, el]);
     setSelected(el.id);
