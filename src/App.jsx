@@ -520,7 +520,7 @@ function generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo) {
 }
 
 // ── Design plot PDF (visual stage/lighting/set layout) ───────────────────────
-function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo) {
+function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo, opts = {}) {
   if (!svgEl) return;
 
   const clone = svgEl.cloneNode(true);
@@ -542,6 +542,50 @@ function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo) 
   clone.setAttribute("height", "auto");
   clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
+  // Set pieces in schedule order — the numbers on the plot match the Set Piece Schedule rows
+  const setPieces = elements.filter(e =>
+    e.category !== "lighting" && e.type !== "batten" && e.type !== "textlabel" && e.category !== "notes");
+
+  // Optional: stamp each set piece's schedule number onto the plot
+  if (opts.numberPieces && innerG) {
+    const NS = "http://www.w3.org/2000/svg";
+    const vbW = rW + margin * 2;
+    const r = Math.max(8, vbW * 0.011);          // badge size scales with the plot so it prints legibly
+    const layer = document.createElementNS(NS, "g");
+    // WCAG relative luminance, so the badge can be whichever of near-black / white contrasts more with the piece
+    const lum = (hex) => {
+      let h = String(hex || "").replace("#", "");
+      if (h.length === 3) h = h.split("").map(ch => ch + ch).join("");
+      if (!/^[0-9a-fA-F]{6}$/.test(h)) return 0.2;   // unknown colour: treat as mid-dark
+      const [R, G, B] = [0, 2, 4].map(k => {
+        const v = parseInt(h.slice(k, k + 2), 16) / 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      });
+      return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+    };
+    setPieces.forEach((p, i) => {
+      const L = lum(p.color);
+      const lightPiece = (L + 0.05) / 0.05 > 1.05 / (L + 0.05);   // contrast vs white is lower than vs black
+      const badgeFill = lightPiece ? "#111111" : "#ffffff";
+      const badgeText = lightPiece ? "#ffffff" : "#111111";
+      const badgeRing = lightPiece ? "#ffffff" : "#111111";
+      const cx = p.type === "wall" ? ((p.x1||0)+(p.x2||0))/2 : (p.x||0);
+      const cy = p.type === "wall" ? ((p.y1||0)+(p.y2||0))/2 : (p.y||0);
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", cx); c.setAttribute("cy", cy); c.setAttribute("r", r);
+      c.setAttribute("fill", badgeFill); c.setAttribute("stroke", badgeRing); c.setAttribute("stroke-width", r*0.12);
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", cx); t.setAttribute("y", cy);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("dominant-baseline", "central");
+      t.setAttribute("font-family", "Helvetica Neue, Arial, sans-serif");
+      t.setAttribute("font-weight", "bold"); t.setAttribute("fill", badgeText);
+      t.setAttribute("font-size", String((i+1) >= 10 ? r*1.05 : r*1.25));
+      t.textContent = String(i + 1);
+      layer.appendChild(c); layer.appendChild(t);
+    });
+    innerG.appendChild(layer);
+  }
+
   const svgString = new XMLSerializer().serializeToString(clone);
 
   const now = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
@@ -556,8 +600,6 @@ function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo) 
     const n = Number(inches) || 0;
     return n === 0 ? "Floor" : `${Math.round(n*100)/100}"`;
   };
-  const setPieces = elements.filter(e =>
-    e.category !== "lighting" && e.type !== "batten" && e.type !== "textlabel" && e.category !== "notes");
   const setPieceRows = setPieces.map((p, i) => {
     const isWall = p.type === "wall";
     const name = p.label || SET_DEFS[p.type]?.label || p.type;
@@ -1435,6 +1477,7 @@ export default function StageDesigner() {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState(null);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [numberPieces, setNumberPieces] = useState(true);
   const [showProjectInfo, setShowProjectInfo] = useState(false);
   const [showVenueEditor, setShowVenueEditor] = useState(false);
   const [projectInfo, setProjectInfo] = useState({ title:"", venue:"Burgdorff Center", designer:"", director:"", revision:"1" });
@@ -1903,7 +1946,10 @@ export default function StageDesigner() {
         <Btn onClick={()=>setShowProjectInfo(true)}>⚙ Project</Btn>
         <Btn onClick={()=>setShowSchedule(true)} active={showSchedule}>📋 Schedule</Btn>
         <Btn onClick={()=>generateInstrumentSchedulePDF(elements,stageW,stageH,projectInfo)} title="Print instrument/batten schedule as PDF">🖨 Sched PDF</Btn>
-        <Btn onClick={()=>generateDesignPDF(svgRef.current,elements,stageW,stageH,venue,projectInfo)} title="Print the stage/lighting/set design layout as PDF">🖨 Plot PDF</Btn>
+        <Btn onClick={()=>generateDesignPDF(svgRef.current,elements,stageW,stageH,venue,projectInfo,{numberPieces})} title="Print the stage/lighting/set design layout as PDF">🖨 Plot PDF</Btn>
+        <label title="Print each set piece's schedule number on the plot PDF" style={{ display:"flex", alignItems:"center", gap:3, fontSize:11, color:COLORS.textDim, cursor:"pointer", userSelect:"none" }}>
+          <input type="checkbox" checked={numberPieces} onChange={e=>setNumberPieces(e.target.checked)}/> #
+        </label>
         <Btn onClick={exportSVG}>⬇ SVG</Btn>
         <Btn onClick={exportJSON}>⬇ JSON</Btn>
         <Btn onClick={()=>fileInputRef.current?.click()}>⬆ Import</Btn>
