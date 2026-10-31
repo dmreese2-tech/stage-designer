@@ -61,12 +61,15 @@ const SET_DEFS = {
   tri_platform: { label:"Triangle Platform", color:"#6b5e45", w:80, h:80, shape:"triangle" },
   chair:     { label:"Chair",         color:"#5a4f3a", w:24,  h:24  },
   table:     { label:"Table",         color:"#6b5a3a", w:60,  h:30  },
+  round_table: { label:"Round Table", color:"#6b5a3a", w:60,  h:60,  shape:"circle" },
+  stool:     { label:"Stool",         color:"#5a4f3a", w:24,  h:24,  shape:"circle" },
   sofa:      { label:"Sofa",          color:"#5a4a4a", w:80,  h:32  },
   bed:       { label:"Bed",           color:"#4a4a5a", w:60,  h:80  },
   door:      { label:"Door (swing)",  color:"#8a7060", w:36,  h:4   },
   window:    { label:"Window",        color:"#6080a0", w:48,  h:4   },
   backdrop:  { label:"Backdrop",      color:"#2a3a4a", w:200, h:4   },
-  leg_drape: { label:"Leg Drape",     color:"#1a1a2a", w:8,   h:120 },
+  leg_drape: { label:"Leg Curtain",   color:"#1a1a2a", w:8,   h:120, layer:"softgoods" },
+  traveler:  { label:"Traveler Curtain", color:"#5a1f2a", w:240, h:8, shape:"traveler", layer:"softgoods" },
   scrim:     { label:"Scrim",         color:"#3a4a5a", w:200, h:4   },
   stairs:    { label:"Stairs",        color:"#7a6a4a", w:40,  h:40  },
   podium:    { label:"Podium",        color:"#6a5a4a", w:30,  h:30  },
@@ -289,6 +292,19 @@ function SetPieceSVG({ def, x, y, rotation=0, color, selected, label }) {
       {def.shape === "triangle"
         // right triangle, 90° corner at lower-left; use Rotation to orient it
         ? <polygon points={`${-hw},${hh} ${hw},${hh} ${-hw},${-hh}`} fill={color} stroke={stroke} strokeWidth={sw} strokeLinejoin="round"/>
+        : def.shape === "circle"
+        // round table / stool; W and H set the diameter (unequal values give an oval)
+        ? <ellipse cx={0} cy={0} rx={hw} ry={hh} fill={color} stroke={stroke} strokeWidth={sw}/>
+        : def.shape === "traveler"
+        // two curtain panels meeting at centre stage, with fold lines and a centre split
+        ? <g>
+            <rect x={-hw} y={-hh} width={def.w/2} height={def.h} fill={color} stroke={stroke} strokeWidth={sw} rx={1}/>
+            <rect x={0} y={-hh} width={def.w/2} height={def.h} fill={color} stroke={stroke} strokeWidth={sw} rx={1}/>
+            {Array.from({length:Math.max(0,Math.floor(def.w/12)-1)},(_,i)=>-hw+(i+1)*12).filter(fx=>Math.abs(fx)>1).map(fx=>(
+              <line key={fx} x1={fx} y1={-hh} x2={fx} y2={hh} stroke={stroke} strokeWidth={0.5} opacity={0.5}/>
+            ))}
+            <line x1={0} y1={-hh-2} x2={0} y2={hh+2} stroke={stroke} strokeWidth={1.5}/>
+          </g>
         : <rect x={-hw} y={-hh} width={def.w} height={def.h} fill={color} stroke={stroke} strokeWidth={sw} rx={2}/>}
       {isDoor && <path d={`M${-hw},${-hh} A${def.w},${def.w} 0 0 1 ${hw},${-hh}`} fill="none" stroke={stroke} strokeWidth={1} strokeDasharray="3,2"/>}
       {label?.toLowerCase().includes("stairs") && [0.25,0.5,0.75].map(t=>(
@@ -1534,7 +1550,7 @@ export default function StageDesigner() {
   const placeElement = useCallback((type, category, defObj, cx, cy) => {
     const el = {
       id: uid(), type, category,
-      layer: category === "lighting" ? "lighting" : activeLayer,
+      layer: category === "lighting" ? "lighting" : (defObj.layer || activeLayer),
       x: snap(cx), y: snap(cy),
       rotation: 0, color: defObj.color,
       label: defObj.label,
