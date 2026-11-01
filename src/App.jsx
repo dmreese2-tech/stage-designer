@@ -1292,6 +1292,66 @@ function ScheduleModal({ projectInfo, elements, stageW, stageH, lightingEls, bat
   );
 }
 
+// ── Bounding box of any element, in canvas units (used by the box-select tool) ──
+function elBounds(el) {
+  if (el.x1 !== undefined) {
+    return { l:Math.min(el.x1,el.x2)-3, r:Math.max(el.x1,el.x2)+3, t:Math.min(el.y1,el.y2)-3, b:Math.max(el.y1,el.y2)+3 };
+  }
+  if (el.type === "textlabel") {
+    const h = el.fontSize || 14, w = (el.label || "Label").length * h * 0.6;
+    return { l:el.x - w/2, r:el.x + w/2, t:el.y - h, b:el.y };
+  }
+  const rad = (el.rotation || 0) * Math.PI / 180, w = el.w || 0, h = el.h || 0;
+  const hx = (Math.abs(w*Math.cos(rad)) + Math.abs(h*Math.sin(rad))) / 2;
+  const hy = (Math.abs(w*Math.sin(rad)) + Math.abs(h*Math.cos(rad))) / 2;
+  return { l:(el.x||0)-hx, r:(el.x||0)+hx, t:(el.y||0)-hy, b:(el.y||0)+hy };
+}
+
+// ── Panel shown while several elements are selected ───────────────────────
+function GroupPanel({ ids, elements, onCopy, onDuplicate, onDelete, onClear, moveZ }) {
+  const picked = elements.filter(e => ids.includes(e.id));
+  const counts = {};
+  picked.forEach(e => {
+    const name = e.type === "wall" ? "Wall" : e.type === "batten" ? "Batten" : e.type === "textlabel" ? "Text label"
+      : e.category === "lighting" ? (FIXTURE_DEFS[e.type]?.label || e.type) : (SET_DEFS[e.type]?.label || e.type);
+    counts[name] = (counts[name] || 0) + 1;
+  });
+  const btn = { background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" };
+  return (
+    <div style={{ flex:1, overflowY:"auto", padding:10 }}>
+      <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>GROUP SELECTION</div>
+      <div style={{ fontSize:14, fontWeight:"bold", color:COLORS.text, marginBottom:6 }}>{picked.length} items selected</div>
+      <div style={{ marginBottom:10 }}>
+        {Object.entries(counts).map(([name,n]) => (
+          <div key={name} style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:COLORS.textDim, padding:"2px 0" }}>
+            <span>{name}</span><span>{n}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize:10, color:COLORS.textDim, lineHeight:1.5, marginBottom:10 }}>
+        Drag any selected item to move them all. Arrow keys nudge the group. Shift+click adds or removes an item.
+      </div>
+      <div style={{ display:"flex", gap:6 }}>
+        <button onClick={onCopy} style={{ ...btn, flex:1 }}>⎘ Copy</button>
+        <button onClick={onDuplicate} style={{ ...btn, flex:1 }}>⧉ Duplicate</button>
+      </div>
+      <div style={{ marginTop:10 }}>
+        <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>ARRANGE  ( ] [ )</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
+          {[["⤒ To Front","front"],["↑ Forward","forward"],["↓ Backward","backward"],["⤓ To Back","back"]].map(([lbl,mode])=>(
+            <button key={mode} onClick={()=>moveZ(mode)} style={{ ...btn, padding:"5px 0", fontSize:10 }}>{lbl}</button>
+          ))}
+        </div>
+      </div>
+      <button onClick={onClear} style={{ ...btn, marginTop:10, width:"100%" }}>Deselect</button>
+      <button onClick={onDelete}
+        style={{ marginTop:6, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
+        🗑 Delete {picked.length} Items
+      </button>
+    </div>
+  );
+}
+
 // ── Properties panel content ──────────────────────────────────────────────
 function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, selected, copySelected, pasteClipboard, duplicateSelected, hasClipboard, moveZ }) {
     if (!selEl) return (
@@ -1505,7 +1565,15 @@ export default function StageDesigner() {
   const svgRef = useRef(null);
   const fileInputRef = useRef(null);
   const [elements, setElements] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelectedRaw] = useState(null);   // the one selected element (drives the Props panel)
+  const [multiSel, setMultiSel] = useState([]);          // ids of a group selection (2 or more)
+  const [marquee, setMarquee] = useState(null);          // rubber-band box while drag-selecting
+  // Any single-select clears the group, so the two can never disagree
+  const setSelected = useCallback((id) => { setSelectedRaw(id); setMultiSel([]); }, []);
+  const setGroup = useCallback((ids) => {
+    if (ids.length > 1) { setSelectedRaw(null); setMultiSel(ids); }
+    else { setSelectedRaw(ids[0] ?? null); setMultiSel([]); }
+  }, []);
   const [tool, setTool] = useState("select");
   const [activeCat, setActiveCat] = useState("set");
   const [activeLayer, setActiveLayer] = useState("set");
@@ -1535,6 +1603,10 @@ export default function StageDesigner() {
   const [placingLabel, setPlacingLabel] = useState(false);
 
   const selEl = elements.find(e => e.id === selected);
+  const selIds = multiSel.length > 1 ? multiSel : selected ? [selected] : [];   // everything currently selected
+  const toggleSel = useCallback((id) => {
+    setGroup(selIds.includes(id) ? selIds.filter(i => i !== id) : [...selIds, id]);
+  }, [selIds, setGroup]);
 
   // ── SVG coordinate helpers ────────────────────────────────────────────────
   const svgPt = useCallback((clientX, clientY) => {
@@ -1614,15 +1686,35 @@ export default function StageDesigner() {
       }
       return;
     }
-    if (tool === "select") setSelected(null);
+    if (tool === "select") {
+      // start a rubber-band box; releasing without dragging just clears the selection
+      setMarquee({ x1:pt.x, y1:pt.y, x2:pt.x, y2:pt.y, add:e.shiftKey });
+    }
   }, [tool, pan, svgPt]);
 
   const onPointerMove = useCallback((e) => {
     if (isPanning && panStart) {
       setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y }); return;
     }
+    if (marquee) {
+      const mp = svgPt(e.clientX, e.clientY);
+      setMarquee(m => m && { ...m, x2:mp.x, y2:mp.y });
+      return;
+    }
     if (dragging) {
       const pt = svgPt(e.clientX, e.clientY);
+      if (dragging.group) {
+        // move every selected element by the same grid-snapped offset
+        const dx = snap(pt.x - dragging.sx), dy = snap(pt.y - dragging.sy);
+        setElements(prev => prev.map(el => {
+          const o = dragging.orig[el.id];
+          if (!o) return el;
+          return o.x1 !== undefined
+            ? { ...el, x1:o.x1+dx, y1:o.y1+dy, x2:o.x2+dx, y2:o.y2+dy }
+            : { ...el, x:o.x+dx, y:o.y+dy };
+        }));
+        return;
+      }
       setElements(prev => prev.map(el => {
         if (el.id !== dragging.id) return el;
         if (dragging.mode === "battenMove") {
@@ -1638,10 +1730,23 @@ export default function StageDesigner() {
     const pt = svgPt(e.clientX, e.clientY);
     if (drawingWall && wallStart) setDrawingWall({ x1:wallStart.x, y1:wallStart.y, x2:snap(pt.x), y2:snap(pt.y) });
     if (drawingBatten && battenStart) setDrawingBatten({ x1:battenStart.x, y1:battenStart.y, x2:snap(pt.x), y2:snap(pt.y) });
-  }, [isPanning, panStart, dragging, drawingWall, wallStart, drawingBatten, battenStart, svgPt]);
+  }, [isPanning, panStart, dragging, marquee, drawingWall, wallStart, drawingBatten, battenStart, svgPt]);
 
   const onPointerUp = useCallback((e) => {
     setIsPanning(false); setPanStart(null);
+    if (marquee) {
+      const m = marquee;
+      setMarquee(null);
+      const l = Math.min(m.x1,m.x2), r = Math.max(m.x1,m.x2), t = Math.min(m.y1,m.y2), b = Math.max(m.y1,m.y2);
+      if ((r - l) < 4/zoom && (b - t) < 4/zoom) { if (!m.add) setSelected(null); return; }   // a click, not a drag
+      const hits = elements
+        .filter(el => layerVis[el.layer])
+        .filter(el => { const bb = elBounds(el); return bb.r >= l && bb.l <= r && bb.b >= t && bb.t <= b; })
+        .map(el => el.id);
+      setGroup([...new Set([...(m.add ? selIds : []), ...hits])]);
+      if (hits.length && sidebarTab !== "props") setSidebarTab("props");
+      return;
+    }
     if (dragging) { setDragging(null); return; }
     if (drawingWall && wallStart) {
       const len = Math.hypot(drawingWall.x2-drawingWall.x1, drawingWall.y2-drawingWall.y1);
@@ -1668,13 +1773,30 @@ export default function StageDesigner() {
       }
       setDrawingBatten(null); setBattenStart(null); setTool("select");
     }
-  }, [dragging, drawingWall, wallStart, drawingBatten, battenStart, activeLayer, elements]);
+  }, [dragging, marquee, zoom, layerVis, selIds, setGroup, sidebarTab, drawingWall, wallStart, drawingBatten, battenStart, activeLayer, elements]);
+
+  // begin dragging the whole group; remembers where each member started
+  const startGroupDrag = useCallback((e, ids) => {
+    const pt = svgPt(e.clientX, e.clientY);
+    const orig = {};
+    elements.forEach(x => { if (ids.includes(x.id)) orig[x.id] = { x:x.x, y:x.y, x1:x.x1, y1:x.y1, x2:x.x2, y2:x.y2 }; });
+    setDragging({ group:true, id:null, sx:pt.x, sy:pt.y, orig });
+  }, [elements, svgPt]);
 
   const onElementDown = useCallback((e, el) => {
     e.stopPropagation();
     if (tool === "delete") {
       setElements(prev => prev.filter(x => x.id !== el.id));
       setSelected(null); return;
+    }
+    if (tool === "select" && e.shiftKey) {            // Shift+click adds / removes from the selection
+      toggleSel(el.id);
+      if (sidebarTab !== "props") setSidebarTab("props");
+      return;
+    }
+    if (tool === "select" && selIds.length > 1 && selIds.includes(el.id)) {   // grab the group
+      startGroupDrag(e, selIds);
+      return;
     }
     if (tool === "select") {
       setSelected(el.id);
@@ -1684,7 +1806,7 @@ export default function StageDesigner() {
         setDragging({ id: el.id, ox: pt.x - el.x, oy: pt.y - el.y });
       }
     }
-  }, [tool, svgPt, sidebarTab]);
+  }, [tool, svgPt, sidebarTab, selIds, toggleSel, startGroupDrag]);
 
   const onWheel = useCallback((e) => {
     e.preventDefault();
@@ -1705,34 +1827,43 @@ export default function StageDesigner() {
   // Later in the array = drawn on top. Lighting is drawn in its own pass above
   // all set pieces, so forward/backward only step past items in the same pass.
   const moveZ = useCallback((mode) => {
-    if (!selected) return;
+    if (!selIds.length) return;
+    const skip = new Set(selIds);
     setElements(prev => {
-      const i = prev.findIndex(e => e.id === selected);
-      if (i < 0) return prev;
-      const isL = prev[i].category === "lighting";
-      const sameGroup = (e) => (e.category === "lighting") === isL;
-      const arr = [...prev];
-      const [item] = arr.splice(i, 1);
-      if (mode === "front") arr.push(item);
-      else if (mode === "back") arr.unshift(item);
-      else if (mode === "forward") {
-        let j = i;
-        while (j < arr.length && !sameGroup(arr[j])) j++;
-        if (j >= arr.length) arr.splice(i, 0, item); else arr.splice(j + 1, 0, item);
-      } else {
-        let j = i - 1;
-        while (j >= 0 && !sameGroup(arr[j])) j--;
-        if (j < 0) arr.splice(i, 0, item); else arr.splice(j, 0, item);
-      }
+      const picked = prev.filter(e => skip.has(e.id));
+      if (!picked.length) return prev;
+      // front / back: move the whole selection as one block, keeping its internal order
+      if (mode === "front") return [...prev.filter(e => !skip.has(e.id)), ...picked];
+      if (mode === "back")  return [...picked, ...prev.filter(e => !skip.has(e.id))];
+      // forward / backward: step each selected item past the next unselected item of the same pass
+      let arr = [...prev];
+      const ids = picked.map(e => e.id);
+      (mode === "forward" ? [...ids].reverse() : ids).forEach(id => {
+        const i = arr.findIndex(e => e.id === id);
+        if (i < 0) return;
+        const isL = arr[i].category === "lighting";
+        const ok = (e) => (e.category === "lighting") === isL && !skip.has(e.id);
+        const next = [...arr];
+        const [item] = next.splice(i, 1);
+        if (mode === "forward") {
+          let j = i;
+          while (j < next.length && !ok(next[j])) j++;
+          if (j < next.length) { next.splice(j + 1, 0, item); arr = next; }
+        } else {
+          let j = i - 1;
+          while (j >= 0 && !ok(next[j])) j--;
+          if (j >= 0) { next.splice(j, 0, item); arr = next; }
+        }
+      });
       return arr;
     });
-  }, [selected]);
+  }, [selIds]);
 
   // ── copy / paste ──────────────────────────────────────────────────────────
   const [clipboard, setClipboard] = useState(null);
   const [pasteCount, setPasteCount] = useState(0);
 
-  const cloneElWithOffset = useCallback((srcEl, offset) => {
+  const cloneElWithOffset = useCallback((srcEl, offset, idx = {}) => {
     const newEl = { ...srcEl, id: uid() };
     if (newEl.x1 !== undefined) {
       newEl.x1 += offset; newEl.y1 += offset; newEl.x2 += offset; newEl.y2 += offset;
@@ -1740,10 +1871,10 @@ export default function StageDesigner() {
       newEl.x = (newEl.x || 0) + offset; newEl.y = (newEl.y || 0) + offset;
     }
     if (newEl.category === "lighting") {
-      newEl.channel = Math.max(0, ...elements.filter(x => x.category === "lighting").map(x => x.channel || 0)) + 1;
+      newEl.channel = Math.max(0, ...elements.filter(x => x.category === "lighting").map(x => x.channel || 0)) + 1 + (idx.light || 0);
     }
     if (newEl.type === "batten") {
-      const battenCount = elements.filter(x => x.type === "batten").length + 1;
+      const battenCount = elements.filter(x => x.type === "batten").length + 1 + (idx.batten || 0);
       newEl.label = `Batten ${battenCount}`;
     } else if (newEl.label) {
       newEl.label = /\(copy\)$/.test(newEl.label) ? newEl.label : `${newEl.label} (copy)`;
@@ -1751,35 +1882,46 @@ export default function StageDesigner() {
     return newEl;
   }, [elements]);
 
+  // clone a list of elements; lighting channels and batten names keep counting up across the batch
+  const cloneMany = useCallback((list, offset) => {
+    let light = 0, bat = 0;
+    return list.map(src => {
+      const c = cloneElWithOffset(src, offset, { light, batten:bat });
+      if (src.category === "lighting") light++;
+      if (src.type === "batten") bat++;
+      return c;
+    });
+  }, [cloneElWithOffset]);
+
   const copySelected = useCallback(() => {
-    const el = elements.find(x => x.id === selected);
-    if (!el) return;
-    setClipboard(el);
+    const list = elements.filter(x => selIds.includes(x.id));
+    if (!list.length) return;
+    setClipboard(list);
     setPasteCount(0);
-  }, [elements, selected]);
+  }, [elements, selIds]);
 
   const pasteClipboard = useCallback(() => {
-    if (!clipboard) return;
+    if (!clipboard || !clipboard.length) return;
     const n = pasteCount + 1;
     setPasteCount(n);
-    const newEl = cloneElWithOffset(clipboard, GRID * n);
-    setElements(prev => [...prev, newEl]);
-    setSelected(newEl.id);
+    const copies = cloneMany(clipboard, GRID * n);
+    setElements(prev => [...prev, ...copies]);
+    setGroup(copies.map(c => c.id));
     if (sidebarTab !== "props") setSidebarTab("props");
-  }, [clipboard, pasteCount, cloneElWithOffset, sidebarTab]);
+  }, [clipboard, pasteCount, cloneMany, setGroup, sidebarTab]);
 
-  // one-click copy+paste on the currently selected element (avoids relying on
+  // one-click copy+paste on the current selection (avoids relying on
   // clipboard state having updated yet, which copySelected+pasteClipboard back-to-back would)
   const duplicateSelected = useCallback(() => {
-    const el = elements.find(x => x.id === selected);
-    if (!el) return;
-    const newEl = cloneElWithOffset(el, GRID);
-    setElements(prev => [...prev, newEl]);
-    setSelected(newEl.id);
-    setClipboard(el);
+    const list = elements.filter(x => selIds.includes(x.id));
+    if (!list.length) return;
+    const copies = cloneMany(list, GRID);
+    setElements(prev => [...prev, ...copies]);
+    setGroup(copies.map(c => c.id));
+    setClipboard(list);
     setPasteCount(1);
     if (sidebarTab !== "props") setSidebarTab("props");
-  }, [elements, selected, cloneElWithOffset, sidebarTab]);
+  }, [elements, selIds, cloneMany, setGroup, sidebarTab]);
 
 
   // ── keyboard shortcuts ────────────────────────────────────────────────────
@@ -1787,14 +1929,18 @@ export default function StageDesigner() {
     const onKey = (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
       if (e.key === "Escape") { setSelected(null); setTool("select"); }
-      if ((e.key === "Delete" || e.key === "Backspace") && selected) {
-        setElements(prev => prev.filter(x => x.id !== selected)); setSelected(null);
+      const hasSel = selIds.length > 0;
+      if ((e.key === "Delete" || e.key === "Backspace") && hasSel) {
+        setElements(prev => prev.filter(x => !selIds.includes(x.id))); setSelected(null);
       }
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "c" && selected) { copySelected(); e.preventDefault(); }
+      if (mod && e.key.toLowerCase() === "a") {            // select everything on visible layers
+        setGroup(elements.filter(x => layerVis[x.layer]).map(x => x.id)); e.preventDefault();
+      }
+      if (mod && e.key.toLowerCase() === "c" && hasSel) { copySelected(); e.preventDefault(); }
       if (mod && e.key.toLowerCase() === "v" && clipboard) { pasteClipboard(); e.preventDefault(); }
-      if (mod && e.key.toLowerCase() === "d" && selected) { duplicateSelected(); e.preventDefault(); }
-      if (selected && !mod) {
+      if (mod && e.key.toLowerCase() === "d" && hasSel) { duplicateSelected(); e.preventDefault(); }
+      if (hasSel && !mod) {
         if (e.key === "]") { moveZ("forward"); e.preventDefault(); }
         if (e.key === "[") { moveZ("backward"); e.preventDefault(); }
         if (e.key === "}") { moveZ("front"); e.preventDefault(); }   // Shift+]
@@ -1808,17 +1954,22 @@ export default function StageDesigner() {
         if (e.key === "p") setTool("pan");
         if (e.key === "l") setTool("label");
       }
-      if (selected && ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) {
+      if (hasSel && ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) {
         const d = e.shiftKey ? GRID : GRID/4;
         const dx = e.key==="ArrowLeft"?-d:e.key==="ArrowRight"?d:0;
         const dy = e.key==="ArrowUp"?-d:e.key==="ArrowDown"?d:0;
-        setElements(prev=>prev.map(el=>el.id===selected?{...el,x:(el.x||0)+dx,y:(el.y||0)+dy}:el));
+        setElements(prev=>prev.map(el=>{
+          if (!selIds.includes(el.id)) return el;
+          return el.x1 !== undefined
+            ? { ...el, x1:el.x1+dx, y1:el.y1+dy, x2:el.x2+dx, y2:el.y2+dy }
+            : { ...el, x:(el.x||0)+dx, y:(el.y||0)+dy };
+        }));
         e.preventDefault();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, clipboard, copySelected, pasteClipboard, duplicateSelected, moveZ]);
+  }, [selIds, elements, layerVis, setGroup, setSelected, clipboard, copySelected, pasteClipboard, duplicateSelected, moveZ]);
 
   // ── JSON export / import ──────────────────────────────────────────────────
   const exportJSON = () => {
@@ -1881,7 +2032,8 @@ export default function StageDesigner() {
   // ── render element ────────────────────────────────────────────────────────
   const renderEl = (el) => {
     if (!layerVis[el.layer]) return null;
-    const isSel = el.id === selected;
+    const isSel = selIds.includes(el.id);
+    const isPrimary = el.id === selected;   // resize handles only for a single selection
     const isHov = el.id === hoverId;
     const hoverStyle = { cursor: tool==="delete"?"crosshair":tool==="select"?"move":"default" };
 
@@ -1899,6 +2051,8 @@ export default function StageDesigner() {
             onPointerDown={e=>{
               e.stopPropagation();
               if (tool==="delete") { setElements(p=>p.filter(x=>x.id!==el.id)); setSelected(null); return; }
+              if (tool==="select" && e.shiftKey) { toggleSel(el.id); if (sidebarTab!=="props") setSidebarTab("props"); return; }
+              if (tool==="select" && selIds.length>1 && selIds.includes(el.id)) { startGroupDrag(e, selIds); return; }
               setSelected(el.id);
               if (sidebarTab!=="props") setSidebarTab("props");
               if (tool==="select") {
@@ -1911,7 +2065,7 @@ export default function StageDesigner() {
             <BattenSVG el={el} selected={isSel}/>
             {!isSel && <text x={(el.x1+el.x2)/2} y={(el.y1+el.y2)/2-10} fill={COLORS.batten} fontSize={9} textAnchor="middle" opacity={0.7}>{el.label}</text>}
           </g>
-          {isSel && tool==="select" && (
+          {isPrimary && tool==="select" && (
             <>
               <circle cx={el.x1} cy={el.y1} r={7} fill={COLORS.selected} stroke="#000" strokeWidth={1} style={{ cursor:"ew-resize" }}
                 onPointerDown={e=>{ e.stopPropagation(); setSelected(el.id); setDragging({ id: el.id, mode:"battenP1" }); }}/>
@@ -2097,7 +2251,12 @@ export default function StageDesigner() {
             </div>
           )}
 
-          {sidebarTab === "props" && <PropsPanel selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard} moveZ={moveZ}/>}
+          {sidebarTab === "props" && multiSel.length > 1 && (
+            <GroupPanel ids={multiSel} elements={elements} moveZ={moveZ}
+              onCopy={copySelected} onDuplicate={duplicateSelected} onClear={()=>setSelected(null)}
+              onDelete={()=>{ setElements(prev=>prev.filter(x=>!multiSel.includes(x.id))); setSelected(null); }}/>
+          )}
+          {sidebarTab === "props" && multiSel.length <= 1 && <PropsPanel selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard} moveZ={moveZ}/>}
         </div>
 
         {/* ── canvas ── */}
@@ -2340,6 +2499,13 @@ export default function StageDesigner() {
               {[...elements].filter(e=>e.category!=="lighting").map(renderEl)}
               {[...elements].filter(e=>e.category==="lighting").map(renderEl)}
 
+              {/* Box-select rubber band */}
+              {marquee && (
+                <rect x={Math.min(marquee.x1,marquee.x2)} y={Math.min(marquee.y1,marquee.y2)}
+                  width={Math.abs(marquee.x2-marquee.x1)} height={Math.abs(marquee.y2-marquee.y1)}
+                  fill={COLORS.selected} fillOpacity={0.08} stroke={COLORS.selected} strokeWidth={1/zoom}
+                  strokeDasharray={`${5/zoom},${3/zoom}`} pointerEvents="none"/>
+              )}
               {/* Wall preview */}
               {drawingWall && <line x1={drawingWall.x1} y1={drawingWall.y1} x2={drawingWall.x2} y2={drawingWall.y2}
                 stroke={COLORS.accent} strokeWidth={4} strokeLinecap="round" strokeDasharray="8,4" opacity={0.7}/>}
@@ -2355,7 +2521,7 @@ export default function StageDesigner() {
           </svg>
           {/* Hints */}
           <div style={{ position:"absolute", bottom:8, left:8, fontSize:9, color:COLORS.textDim, background:"rgba(22,33,62,0.9)", padding:"4px 8px", borderRadius:4, lineHeight:1.8 }}>
-            S=Select · W=Wall · B=Batten · D=Delete · P=Pan · L=Label · Del=Remove · Arrows=Nudge · [ ]=Send Back/Forward · Scroll=Zoom
+            S=Select · W=Wall · B=Batten · D=Delete · P=Pan · L=Label · Drag=Box select · Shift+click=Add · Ctrl/⌘+A=All · Del=Remove · Arrows=Nudge · [ ]=Send Back/Forward · Scroll=Zoom
           </div>
           {/* Zoom level */}
           <div style={{ position:"absolute", bottom:8, right:8, fontSize:9, color:COLORS.textDim, background:"rgba(22,33,62,0.9)", padding:"4px 8px", borderRadius:4 }}>
@@ -2373,9 +2539,9 @@ export default function StageDesigner() {
               const gel = GEL_PRESETS.find(g=>g.code===el.gelCode)||{hex:"#888"};
               return (
                 <div key={el.id} onClick={()=>{setSelected(el.id);setSidebarTab("props");}}
-                  style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderBottom:`1px solid ${COLORS.border}`, cursor:"pointer", background:selected===el.id?COLORS.bg:"transparent" }}
+                  style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderBottom:`1px solid ${COLORS.border}`, cursor:"pointer", background:selIds.includes(el.id)?COLORS.bg:"transparent" }}
                   onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
-                  onMouseLeave={e=>e.currentTarget.style.background=selected===el.id?COLORS.bg:"transparent"}>
+                  onMouseLeave={e=>e.currentTarget.style.background=selIds.includes(el.id)?COLORS.bg:"transparent"}>
                   <div style={{ width:10, height:10, borderRadius:"50%", background:gel.hex, border:"1px solid #555", flexShrink:0 }}/>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:11, color:COLORS.accent, fontWeight:"bold" }}>Ch {el.channel}</div>
@@ -2392,9 +2558,9 @@ export default function StageDesigner() {
                 </div>
                 {battens.map(b=>(
                   <div key={b.id} onClick={()=>{setSelected(b.id);setSidebarTab("props");}}
-                    style={{ padding:"5px 10px", borderBottom:`1px solid ${COLORS.border}`, cursor:"pointer", background:selected===b.id?COLORS.bg:"transparent" }}
+                    style={{ padding:"5px 10px", borderBottom:`1px solid ${COLORS.border}`, cursor:"pointer", background:selIds.includes(b.id)?COLORS.bg:"transparent" }}
                     onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
-                    onMouseLeave={e=>e.currentTarget.style.background=selected===b.id?COLORS.bg:"transparent"}>
+                    onMouseLeave={e=>e.currentTarget.style.background=selIds.includes(b.id)?COLORS.bg:"transparent"}>
                     <div style={{ fontSize:10, color:COLORS.batten }}>{b.label}</div>
                     <div style={{ fontSize:8, color:COLORS.textDim }}>{((b.x2-b.x1)/GRID).toFixed(1)}' wide</div>
                   </div>
