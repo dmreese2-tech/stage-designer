@@ -1,1570 +1,82 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
+import ConstructionModal from "./ConstructionModal.jsx";
+import { loadShop, mergeShop } from "./construction.js";
+import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE } from "./constants.js";
+import { parseFtIn } from "./units.js";
+import { FixtureSVG, SetPieceSVG, BattenSVG, TextLabelSVG, PinSVG } from "./renderers.jsx";
+import { generateInstrumentSchedulePDF, generateDesignPDF } from "./pdf.js";
+import { Btn } from "./ui.jsx";
+import { VenueEditorModal } from "./VenueEditorModal.jsx";
+import { ProjectInfoModal, ScheduleModal } from "./modals.jsx";
+import { UnderlayPanel, GroupPanel, PropsPanel, elBounds } from "./panels.jsx";
+import NotesModal from "./NotesModal.jsx";
+import CompareModal from "./CompareModal.jsx";
+import LightingModal from "./LightingModal.jsx";
+import { zlibSync, unzlibSync, strToU8, strFromU8 } from "fflate";
+const View3D = lazy(() => import("./View3D.jsx"));   // three.js loads only when the 3D view is opened
 
-// ── constants ────────────────────────────────────────────────────────────────
-const GRID = 20;
-const snap = (v) => Math.round(v / GRID) * GRID;
-
-const COLORS = {
-  bg: "#1a1a2e", panel: "#16213e", border: "#0f3460",
-  accent: "#e94560", accentDim: "#a03040",
-  stage: "#2a2a1a", stageEdge: "#5a5a3a",
-  text: "#e8e0d0", textDim: "#8a8070",
-  grid: "#5a6a8a", selected: "#ffd700", hover: "#88aaff",
-  batten: "#4a6a8a",
-};
-
-// Standard Rosco gel colors (abbreviated)
-const GEL_PRESETS = [
-  { code: "R02",  name: "Bastard Amber",    hex: "#e8b870" },
-  { code: "R08",  name: "Pale Gold",        hex: "#f0d080" },
-  { code: "R26",  name: "Bright Red",       hex: "#cc2020" },
-  { code: "R27",  name: "Medium Red",       hex: "#aa1818" },
-  { code: "R39",  name: "Skelton Exotic",   hex: "#e87040" },
-  { code: "R51",  name: "Surprise Pink",    hex: "#e880a0" },
-  { code: "R58",  name: "Deep Lavender",    hex: "#8040c0" },
-  { code: "R68",  name: "Sky Blue",         hex: "#4090d0" },
-  { code: "R74",  name: "Night Blue",       hex: "#102080" },
-  { code: "R80",  name: "Primary Blue",     hex: "#2030c0" },
-  { code: "R88",  name: "Lime Green",       hex: "#60d040" },
-  { code: "R90",  name: "Dark Yellow Green",hex: "#80a020" },
-  { code: "R99",  name: "Chocolate",        hex: "#603010" },
-  { code: "R312", name: "Canary",           hex: "#f0e040" },
-  { code: "R315", name: "Pale Violet",      hex: "#c090e0" },
-  { code: "R343", name: "Deep Purple",      hex: "#400080" },
-  { code: "L201", name: "Full CT Orange",   hex: "#e09040" },
-  { code: "L202", name: "Half CT Orange",   hex: "#f0b870" },
-  { code: "L203", name: "Quarter CT Orange",hex: "#f8d8a0" },
-  { code: "Open", name: "Open White",       hex: "#ffffff" },
-  { code: "None", name: "No Gel",           hex: "#444444" },
-];
-
-const FIXTURE_DEFS = {
-  ellipsoidal: { label:"Ellipsoidal",  shape:"ellipse",  color:"#ffdd44", w:28, h:40 },
-  fresnel:     { label:"Fresnel",      shape:"circle",   color:"#44aaff", w:36, h:36 },
-  par:         { label:"PAR Can",      shape:"rect",     color:"#ff8844", w:24, h:36 },
-  led_wash:    { label:"LED Wash",     shape:"rect",     color:"#aa44ff", w:40, h:28 },
-  spotlight:   { label:"Follow Spot",  shape:"triangle", color:"#ffffff", w:30, h:42 },
-  strobe:      { label:"Strobe",       shape:"rect",     color:"#ccccff", w:40, h:20 },
-  hazer:       { label:"Hazer",        shape:"cloud",    color:"#aaddff", w:48, h:32 },
-  moving_head: { label:"Moving Head",  shape:"diamond",  color:"#ff44ff", w:30, h:30 },
-  strip_light: { label:"Strip Light",  shape:"strip",    color:"#ffee88", w:80, h:16 },
-};
-
-const BATTEN_DEFS = {
-  batten: { label: "Batten / Pipe", color: "#4a6a8a" },
-};
-
-const SET_DEFS = {
-  flat:      { label:"Flat",          color:"#8b7355", w:4,   h:80  },
-  door_flat: { label:"Door Flat",     color:"#7a6245", w:4,   h:80  },
-  platform:  { label:"Platform",      color:"#6b5e45", w:60,  h:40  },
-  tri_platform: { label:"Triangle Platform", color:"#6b5e45", w:80, h:80, shape:"triangle" },
-  chair:     { label:"Chair",         color:"#5a4f3a", w:24,  h:24  },
-  table:     { label:"Table",         color:"#6b5a3a", w:60,  h:30  },
-  round_table: { label:"Round Table", color:"#6b5a3a", w:60,  h:60,  shape:"circle" },
-  stool:     { label:"Stool",         color:"#5a4f3a", w:24,  h:24,  shape:"circle" },
-  sofa:      { label:"Sofa",          color:"#5a4a4a", w:80,  h:32  },
-  bed:       { label:"Bed",           color:"#4a4a5a", w:60,  h:80  },
-  door:      { label:"Door (swing)",  color:"#8a7060", w:36,  h:4   },
-  window:    { label:"Window",        color:"#6080a0", w:48,  h:4   },
-  backdrop:  { label:"Backdrop",      color:"#2a3a4a", w:200, h:4   },
-  leg_drape: { label:"Leg Curtain",   color:"#1a1a2a", w:8,   h:120, layer:"softgoods" },
-  traveler:  { label:"Traveler Curtain", color:"#5a1f2a", w:240, h:8, shape:"traveler", layer:"softgoods" },
-  scrim:     { label:"Scrim",         color:"#3a4a5a", w:200, h:4   },
-  stairs:    { label:"Stairs",        color:"#7a6a4a", w:40,  h:40  },
-  podium:    { label:"Podium",        color:"#6a5a4a", w:30,  h:30  },
-};
-
-const TOOLS = [
-  { id:"select",  icon:"↖",  label:"Select (S)"   },
-  { id:"pan",     icon:"✋", label:"Pan (P)"      },
-  { id:"wall",    icon:"▬",  label:"Draw Wall (W)" },
-  { id:"batten",  icon:"═",  label:"Add Batten (B)"},
-  { id:"label",   icon:"T",  label:"Text Label (L)"},
-  { id:"delete",  icon:"✕",  label:"Delete (D)"   },
-];
-
-const LAYERS = [
-  { id:"lighting",   label:"⚡ Lighting",   color:"#ffdd44" },
-  { id:"battens",    label:"═  Battens",    color:"#4a6a8a" },
-  { id:"set",        label:"🏠 Set",         color:"#8b7355" },
-  { id:"softgoods",  label:"🎭 Soft Goods",  color:"#2a3a4a" },
-  { id:"practicals", label:"💡 Practicals",  color:"#ff8844" },
-  { id:"notes",      label:"📝 Notes",       color:"#88cc88" },
-];
-
-// ── Venue configuration presets ───────────────────────────────────────────────
-const VENUE_CONFIGS = {
-  burgdorff: {
-    label: "Burgdorff Center",
-    icon: "🏛",
-    desc: "Burgdorff Center, Maplewood NJ — curved DS apron, recessed US center section",
-    stageW: 35.5, stageH: 26.5,
-    roomW: 36, roomH: 32,
-    stageOffX: 0, stageOffY: 0,
-    audience: [],
-    config: "burgdorff",
-    curvedApron: true, apronRadius: 17.75, apronDepth: 4.833,
-    notch: true, notchW: 13.875, notchD: 4.5,
-  },
-  blackbox: {
-    label: "Black Box / Flexible",
-    icon: "⬛",
-    desc: "Fully flexible space, no fixed stage/audience relationship",
-    stageW: 40, stageH: 30,
-    roomW: 60, roomH: 55,
-    stageOffX: 10, stageOffY: 12,
-    audience: [],
-    config: "blackbox",
-  },
-  proscenium: {
-    label: "Proscenium",
-    icon: "🎭",
-    desc: "Traditional stage with arch, audience faces one direction",
-    stageW: 50, stageH: 30,
-    roomW: 60, roomH: 70,
-    stageOffX: 5, stageOffY: 5,
-    audience: [{ x:5, y:37, w:50, h:28, label:"House", seats:400 }],
-    config: "proscenium",
-  },
-  thrust: {
-    label: "Thrust",
-    icon: "🔲",
-    desc: "Stage extends into audience, seating on three sides",
-    stageW: 30, stageH: 30,
-    roomW: 60, roomH: 60,
-    stageOffX: 15, stageOffY: 5,
-    audience: [
-      { x:0,  y:5,  w:14, h:30, label:"SR House",   seats:80  },
-      { x:46, y:5,  w:14, h:30, label:"SL House",   seats:80  },
-      { x:5,  y:37, w:50, h:18, label:"DS House",   seats:120 },
-    ],
-    config: "thrust",
-  },
-  traverse: {
-    label: "Traverse",
-    icon: "⬌",
-    desc: "Stage runs through the middle, audience on both sides",
-    stageW: 40, stageH: 18,
-    roomW: 60, roomH: 50,
-    stageOffX: 10, stageOffY: 16,
-    audience: [
-      { x:2,  y:14, w:7,  h:22, label:"SR House", seats:60 },
-      { x:51, y:14, w:7,  h:22, label:"SL House", seats:60 },
-    ],
-    config: "traverse",
-  },
-  arena: {
-    label: "Arena / In-the-Round",
-    icon: "⭕",
-    desc: "Stage in the center, audience surrounds on all sides",
-    stageW: 24, stageH: 24,
-    roomW: 60, roomH: 60,
-    stageOffX: 18, stageOffY: 18,
-    audience: [
-      { x:2,  y:18, w:15, h:24, label:"SR House",  seats:80  },
-      { x:43, y:18, w:15, h:24, label:"SL House",  seats:80  },
-      { x:18, y:2,  w:24, h:15, label:"US House",  seats:80  },
-      { x:18, y:43, w:24, h:15, label:"DS House",  seats:80  },
-    ],
-    config: "arena",
-  },
-  endstage: {
-    label: "End Stage",
-    icon: "▬",
-    desc: "Simple raised platform at one end, no proscenium arch",
-    stageW: 40, stageH: 16,
-    roomW: 55, roomH: 60,
-    stageOffX: 7, stageOffY: 5,
-    audience: [{ x:5, y:23, w:45, h:32, label:"House", seats:200 }],
-    config: "endstage",
-  },
-  courtyard: {
-    label: "Courtyard / L-shaped",
-    icon: "🔳",
-    desc: "Stage in a corner with audience wrapping two sides",
-    stageW: 30, stageH: 30,
-    roomW: 60, roomH: 60,
-    stageOffX: 5, stageOffY: 5,
-    audience: [
-      { x:37, y:5,  w:20, h:30, label:"SL House",  seats:80  },
-      { x:5,  y:37, w:52, h:20, label:"DS House",  seats:120 },
-    ],
-    config: "courtyard",
-  },
-};
-
-const DEFAULT_VENUE = {
-  config: "burgdorff",
-  // Burgdorff Center room: 36' wide x ~32' deep wall-to-wall
-  roomW: 36, roomH: 32,
-  stageOffX: 0, stageOffY: 0,
-  roomShape: "rect",
-  roomPoints: [],
-  audience: [],
-  showRoom: true,
-  showAudience: true,
-  roomColor: "#111118",
-  roomBorderColor: "#3a3a5a",
-  audienceColor: "#1a2a1a",
-  houseSeats: 0,
-  orientation: "N",
-  vomitories: [],
-  // Curved downstage apron (from ground plan):
-  // 17'9" radius arc, 4'10" deep at center DS
-  curvedApron: true,
-  apronRadius: 17.75,
-  apronDepth: 4.833,
-  // Upstage recessed center section: 13'10.5" wide, wings step forward 4'6"
-  notch: true,
-  notchW: 13.875,
-  notchD: 4.5,
-};
-
+// ── Stage Designer — main app. Supporting pieces live in the sibling modules imported above. ──
+let SNAP = GRID;   // current snap step in px (set from the Snap control); 0 = off
+const snap = (v) => (SNAP > 0 ? Math.round(v / SNAP) * SNAP : v);
 let _id = 1;
 const uid = () => `el_${_id++}`;
 
-// ── SVG Fixture renderer ──────────────────────────────────────────────────────
-function FixtureSVG({ def, x, y, rotation=0, color, focused=false, focusAngle=45, selected, gelHex }) {
-  const hw = def.w/2, hh = def.h/2;
-  const stroke = selected ? COLORS.selected : focused ? "#88ffaa" : "#222";
-  const sw = selected ? 2.5 : 1.5;
-  const fill = gelHex && gelHex !== "#444444" ? gelHex : color;
-
-  let shape;
-  if (def.shape === "ellipse") {
-    shape = <ellipse cx={0} cy={0} rx={hw} ry={hh} fill={fill} stroke={stroke} strokeWidth={sw}/>;
-  } else if (def.shape === "circle") {
-    shape = <circle cx={0} cy={0} r={hw} fill={fill} stroke={stroke} strokeWidth={sw}/>;
-  } else if (def.shape === "triangle") {
-    shape = <polygon points={`0,${-hh} ${-hw},${hh} ${hw},${hh}`} fill={fill} stroke={stroke} strokeWidth={sw}/>;
-  } else if (def.shape === "diamond") {
-    shape = <polygon points={`0,${-hh} ${hw},0 0,${hh} ${-hw},0`} fill={fill} stroke={stroke} strokeWidth={sw}/>;
-  } else if (def.shape === "strip") {
-    shape = <g>
-      <rect x={-hw} y={-hh} width={def.w} height={def.h} fill={fill} stroke={stroke} strokeWidth={sw}/>
-      {[-hw*0.6,-hw*0.2,hw*0.2,hw*0.6].map((cx,i)=>(
-        <circle key={i} cx={cx} cy={0} r={hh*0.6} fill="rgba(255,255,200,0.4)" stroke="rgba(0,0,0,0.3)" strokeWidth={0.5}/>
-      ))}
-    </g>;
-  } else if (def.shape === "cloud") {
-    shape = <g>
-      <ellipse cx={0} cy={4} rx={hw*0.7} ry={hh*0.5} fill={fill} stroke={stroke} strokeWidth={sw}/>
-      <circle cx={-hw*0.35} cy={0} r={hh*0.45} fill={fill} stroke={stroke} strokeWidth={sw}/>
-      <circle cx={hw*0.35} cy={0} r={hh*0.45} fill={fill} stroke={stroke} strokeWidth={sw}/>
-    </g>;
-  } else {
-    shape = <rect x={-hw} y={-hh} width={def.w} height={def.h} fill={fill} stroke={stroke} strokeWidth={sw}/>;
-  }
-
-  const beamLen = 90;
-  const halfA = (focusAngle/2)*(Math.PI/180);
-  const bx1 = -Math.tan(halfA)*beamLen, bx2 = Math.tan(halfA)*beamLen;
-  const beamFill = gelHex && gelHex !== "#444444"
-    ? gelHex.replace("#","") 
-    : "ffff80";
-  const beamColor = gelHex && gelHex !== "#444444" ? gelHex : "#ffff80";
-
-  return (
-    <g transform={`translate(${x},${y}) rotate(${rotation})`}>
-      {focused && (
-        <polygon
-          points={`0,${hh} ${bx1},${hh+beamLen} ${bx2},${hh+beamLen}`}
-          fill={beamColor.replace(")"," / 0.12)").replace("rgb","rgba")||"rgba(255,255,128,0.12)"}
-          stroke={beamColor}
-          strokeWidth={1} strokeDasharray="4,3" opacity={0.6}
-        />
-      )}
-      {shape}
-      <line x1={0} y1={-hh} x2={0} y2={hh} stroke="rgba(0,0,0,0.25)" strokeWidth={1}/>
-    </g>
-  );
+// ── Autosave (browser storage) ───────────────────────────────────────────────
+const AUTOSAVE_KEY = "sd_autosave_v1";
+const MODEL_VERSION = 3;
+function loadAutosave() {
+  try { const d = JSON.parse(localStorage.getItem(AUTOSAVE_KEY)); return d && typeof d === "object" ? d : null; } catch { return null; }
 }
-
-// ── Set piece renderer ────────────────────────────────────────────────────────
-function SetPieceSVG({ def, x, y, rotation=0, color, selected, label }) {
-  const hw = def.w/2, hh = def.h/2;
-  const stroke = selected ? COLORS.selected : "#111";
-  const sw = selected ? 2.5 : 1;
-  const isDoor = label?.toLowerCase().includes("door");
-  return (
-    <g transform={`translate(${x},${y}) rotate(${rotation})`}>
-      {def.shape === "triangle"
-        // right triangle, 90° corner at lower-left; use Rotation to orient it
-        ? <polygon points={`${-hw},${hh} ${hw},${hh} ${-hw},${-hh}`} fill={color} stroke={stroke} strokeWidth={sw} strokeLinejoin="round"/>
-        : def.shape === "circle"
-        // round table / stool; W and H set the diameter (unequal values give an oval)
-        ? <ellipse cx={0} cy={0} rx={hw} ry={hh} fill={color} stroke={stroke} strokeWidth={sw}/>
-        : def.shape === "traveler"
-        // two curtain panels meeting at centre stage, with fold lines and a centre split
-        ? <g>
-            <rect x={-hw} y={-hh} width={def.w/2} height={def.h} fill={color} stroke={stroke} strokeWidth={sw} rx={1}/>
-            <rect x={0} y={-hh} width={def.w/2} height={def.h} fill={color} stroke={stroke} strokeWidth={sw} rx={1}/>
-            {Array.from({length:Math.max(0,Math.floor(def.w/12)-1)},(_,i)=>-hw+(i+1)*12).filter(fx=>Math.abs(fx)>1).map(fx=>(
-              <line key={fx} x1={fx} y1={-hh} x2={fx} y2={hh} stroke={stroke} strokeWidth={0.5} opacity={0.5}/>
-            ))}
-            <line x1={0} y1={-hh-2} x2={0} y2={hh+2} stroke={stroke} strokeWidth={1.5}/>
-          </g>
-        : <rect x={-hw} y={-hh} width={def.w} height={def.h} fill={color} stroke={stroke} strokeWidth={sw} rx={2}/>}
-      {isDoor && <path d={`M${-hw},${-hh} A${def.w},${def.w} 0 0 1 ${hw},${-hh}`} fill="none" stroke={stroke} strokeWidth={1} strokeDasharray="3,2"/>}
-      {label?.toLowerCase().includes("stairs") && [0.25,0.5,0.75].map(t=>(
-        <line key={t} x1={-hw} y1={-hh+def.h*t} x2={hw} y2={-hh+def.h*t} stroke={stroke} strokeWidth={0.8}/>
-      ))}
-    </g>
-  );
-}
-
-// ── Batten renderer ───────────────────────────────────────────────────────────
-function BattenSVG({ el, selected }) {
-  const x1 = el.x1 ?? el.x - el.length*GRID/2;
-  const y1 = el.y1 ?? el.y;
-  const x2 = el.x2 ?? el.x + el.length*GRID/2;
-  const y2 = el.y2 ?? el.y;
-  const stroke = selected ? COLORS.selected : COLORS.batten;
-  const mx = (x1+x2)/2, my = (y1+y2)/2;
-  return (
-    <g>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={selected?5:3} strokeLinecap="round"/>
-      <line x1={x1} y1={y1-8} x2={x1} y2={y1+8} stroke={stroke} strokeWidth={1.5}/>
-      <line x1={x2} y1={y2-8} x2={x2} y2={y2+8} stroke={stroke} strokeWidth={1.5}/>
-      {selected && <text x={mx} y={my-12} fill={COLORS.selected} fontSize={10} textAnchor="middle">{el.label || "Batten"}</text>}
-    </g>
-  );
-}
-
-// ── Text label renderer ───────────────────────────────────────────────────────
-function TextLabelSVG({ el, selected }) {
-  return (
-    <g>
-      <text x={el.x} y={el.y} fill={selected ? COLORS.selected : el.color || COLORS.text}
-        fontSize={el.fontSize || 14} textAnchor="middle" fontFamily="Courier New, monospace"
-        style={{ cursor:"move" }}>
-        {el.label || "Label"}
-      </text>
-      {selected && <circle cx={el.x} cy={el.y-4} r={3} fill={COLORS.selected} opacity={0.6}/>}
-    </g>
-  );
-}
-
-// ── PDF generation (pure JS, no server) ──────────────────────────────────────
-function generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo) {
-  const fixtures = elements
-    .filter(e => e.category === "lighting" && e.type !== "hazer")
-    .sort((a,b) => (a.channel||999)-(b.channel||999));
-
-  const battens = elements.filter(e => e.type === "batten");
-
-  // Build minimal PDF manually
-  const lines = [];
-  const objs = [];
-  let objN = 1;
-
-  const addObj = (content) => {
-    objs.push({ id: objN++, content });
-  };
-
-  // We'll use a simpler approach: generate an HTML table and use window.print()
-  // Open a new window with print-ready HTML
-  const now = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
-
-  const tableRows = fixtures.map(f => {
-    const batten = battens.find(b => b.id === f.battenId);
-    const gel = GEL_PRESETS.find(g => g.code === f.gelCode) || { code:"Open", name:"Open White", hex:"#ffffff" };
-    const xFt = ((f.x||0)/GRID).toFixed(1);
-    const yFt = ((f.y||0)/GRID).toFixed(1);
-    return `
-      <tr>
-        <td style="text-align:center;font-weight:bold">${f.channel ?? ""}</td>
-        <td>${f.dimmer ?? ""}</td>
-        <td>${f.label || FIXTURE_DEFS[f.type]?.label || f.type}</td>
-        <td>${batten ? batten.label || "Batten" : ""}</td>
-        <td style="text-align:center">
-          <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${gel.hex};border:1px solid #555;vertical-align:middle;margin-right:4px"></span>
-          ${gel.code}
-        </td>
-        <td>${gel.name}</td>
-        <td style="text-align:center">${f.focusAngle ?? 45}°</td>
-        <td style="text-align:center">${xFt}'</td>
-        <td style="text-align:center">${yFt}'</td>
-        <td>${f.notes ?? ""}</td>
-      </tr>`;
-  }).join("");
-
-  const battenRows = battens.map(b => {
-    const fixturesOnBatten = fixtures.filter(f => f.battenId === b.id);
-    const x1ft = ((b.x1 ?? b.x - b.length*GRID/2)/GRID).toFixed(1);
-    const x2ft = ((b.x2 ?? b.x + b.length*GRID/2)/GRID).toFixed(1);
-    const yft = ((b.y1 ?? b.y)/GRID).toFixed(1);
-    return `
-      <tr>
-        <td>${b.label || "Batten"}</td>
-        <td>${x1ft}' → ${x2ft}'</td>
-        <td>${yft}'</td>
-        <td>${b.trim ?? ""}</td>
-        <td>${fixturesOnBatten.length} fixture${fixturesOnBatten.length !== 1 ? "s":""}:
-          ${fixturesOnBatten.map(f=>`Ch ${f.channel}`).join(", ")}</td>
-      </tr>`;
-  }).join("");
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Instrument Schedule — ${projectInfo.title || "Stage Design"}</title>
-<style>
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:"Helvetica Neue",Arial,sans-serif; font-size:10pt; color:#111; background:#fff; }
-  .page { width:11in; padding:0.5in; }
-  @media print { .page { width:100%; padding:0.4in; } .no-print{display:none} }
-
-  /* Title block */
-  .title-block { border:2px solid #222; margin-bottom:16px; }
-  .title-main { display:flex; border-bottom:1px solid #222; }
-  .title-main .show { flex:1; padding:10px 12px; border-right:1px solid #222; }
-  .title-main .show h1 { font-size:18pt; font-weight:900; letter-spacing:1px; }
-  .title-main .show .sub { font-size:10pt; color:#555; margin-top:2px; }
-  .title-meta { display:flex; }
-  .meta-cell { padding:6px 12px; border-right:1px solid #222; min-width:140px; }
-  .meta-cell:last-child { border-right:none; }
-  .meta-cell .key { font-size:7pt; text-transform:uppercase; letter-spacing:1px; color:#888; }
-  .meta-cell .val { font-size:10pt; font-weight:bold; }
-
-  /* Section headers */
-  h2 { font-size:11pt; font-weight:900; text-transform:uppercase; letter-spacing:1.5px;
-       border-bottom:2px solid #222; padding-bottom:4px; margin:20px 0 10px; }
-
-  /* Tables */
-  table { width:100%; border-collapse:collapse; font-size:8.5pt; margin-bottom:20px; }
-  th { background:#222; color:#fff; padding:5px 7px; font-size:7.5pt; text-transform:uppercase; letter-spacing:0.5px; border:1px solid #222; }
-  td { padding:4px 7px; border:1px solid #ccc; vertical-align:middle; }
-  tr:nth-child(even) td { background:#f8f8f8; }
-  tr:hover td { background:#fff8e8; }
-
-  /* Stage summary box */
-  .summary { display:flex; gap:16px; margin-bottom:20px; }
-  .stat { border:1px solid #ddd; border-radius:4px; padding:8px 14px; text-align:center; min-width:100px; }
-  .stat .n { font-size:20pt; font-weight:900; color:#222; }
-  .stat .k { font-size:7.5pt; text-transform:uppercase; letter-spacing:0.5px; color:#888; margin-top:2px; }
-
-  .gel-legend { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
-  .gel-chip { display:flex; align-items:center; gap:5px; padding:3px 8px; border:1px solid #ddd; border-radius:3px; font-size:8pt; }
-  .gel-dot { width:14px; height:14px; border-radius:50%; border:1px solid #555; }
-
-  .print-btn { position:fixed; top:12px; right:12px; background:#e94560; color:#fff; border:none;
-               padding:10px 20px; border-radius:6px; font-size:11pt; cursor:pointer; font-weight:bold; z-index:999; }
-  .print-btn:hover { background:#c03050; }
-  footer { margin-top:24px; font-size:7.5pt; color:#888; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between; }
-</style>
-</head>
-<body>
-<button class="print-btn no-print" onclick="window.print()">🖨 Print / Save PDF</button>
-<div class="page">
-
-  <!-- TITLE BLOCK -->
-  <div class="title-block">
-    <div class="title-main">
-      <div class="show">
-        <h1>${projectInfo.title || "UNTITLED PRODUCTION"}</h1>
-        <div class="sub">${projectInfo.venue || ""}</div>
-      </div>
-      <div style="padding:10px 14px;text-align:right;min-width:200px">
-        <div style="font-size:7.5pt;text-transform:uppercase;color:#888">Instrument Schedule</div>
-        <div style="font-size:22pt;font-weight:900">PLOT</div>
-      </div>
-    </div>
-    <div class="title-meta">
-      <div class="meta-cell"><div class="key">Designer</div><div class="val">${projectInfo.designer || "—"}</div></div>
-      <div class="meta-cell"><div class="key">Director</div><div class="val">${projectInfo.director || "—"}</div></div>
-      <div class="meta-cell"><div class="key">Stage Size</div><div class="val">${stageW}' × ${stageH}'</div></div>
-      <div class="meta-cell"><div class="key">Date</div><div class="val">${now}</div></div>
-      <div class="meta-cell"><div class="key">Revision</div><div class="val">${projectInfo.revision || "1"}</div></div>
-    </div>
-  </div>
-
-  <!-- SUMMARY STATS -->
-  <div class="summary">
-    <div class="stat"><div class="n">${fixtures.length}</div><div class="k">Total Fixtures</div></div>
-    <div class="stat"><div class="n">${battens.length}</div><div class="k">Battens</div></div>
-    <div class="stat"><div class="n">${fixtures.filter(f=>f.channel).length}</div><div class="k">Channels Used</div></div>
-    <div class="stat"><div class="n">${[...new Set(fixtures.map(f=>f.gelCode).filter(Boolean))].length}</div><div class="k">Gel Colors</div></div>
-    <div class="stat"><div class="n">${[...new Set(fixtures.map(f=>f.type))].length}</div><div class="k">Fixture Types</div></div>
-  </div>
-
-  <!-- GEL LEGEND -->
-  ${fixtures.some(f=>f.gelCode) ? `
-  <h2>Gel Color Legend</h2>
-  <div class="gel-legend">
-    ${[...new Set(fixtures.map(f=>f.gelCode).filter(Boolean))].map(code => {
-      const gel = GEL_PRESETS.find(g=>g.code===code) || {code,name:"Custom",hex:"#888"};
-      return `<div class="gel-chip"><div class="gel-dot" style="background:${gel.hex}"></div><strong>${gel.code}</strong> — ${gel.name}</div>`;
-    }).join("")}
-  </div>` : ""}
-
-  <!-- INSTRUMENT SCHEDULE -->
-  <h2>Instrument Schedule</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Ch</th><th>Dimmer</th><th>Fixture</th><th>Batten/Position</th>
-        <th>Gel</th><th>Gel Name</th><th>Angle</th><th>X</th><th>Y</th><th>Notes</th>
-      </tr>
-    </thead>
-    <tbody>${tableRows || '<tr><td colspan="10" style="text-align:center;color:#888;padding:20px">No lighting fixtures in plot</td></tr>'}</tbody>
-  </table>
-
-  <!-- BATTEN SCHEDULE -->
-  ${battens.length > 0 ? `
-  <h2>Batten / Pipe Schedule</h2>
-  <table>
-    <thead><tr><th>Name</th><th>Position (SR→SL)</th><th>Depth from DS</th><th>Trim Height</th><th>Fixtures</th></tr></thead>
-    <tbody>${battenRows}</tbody>
-  </table>` : ""}
-
-  <footer>
-    <span>Stage Designer App — Generated ${now}</span>
-    <span>${projectInfo.title || "Untitled Production"} | ${projectInfo.venue || ""}</span>
-  </footer>
-</div>
-</body>
-</html>`;
-
-  const win = window.open("", "_blank");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
-}
-
-// ── Design plot PDF (visual stage/lighting/set layout) ───────────────────────
-function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projectInfo, opts = {}) {
-  if (!svgEl) return;
-
-  const clone = svgEl.cloneNode(true);
-  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-
-  // The live canvas wraps everything in a pan/zoom <g transform="...">; strip
-  // that so the export always shows the whole design, not just what's currently
-  // scrolled/zoomed into view.
-  const innerG = clone.querySelector("g");
-  if (innerG) innerG.removeAttribute("transform");
-
-  const offX = (venue.stageOffX || 0) * GRID, offY = (venue.stageOffY || 0) * GRID;
-  const rx = -offX, ry = -offY;
-  const rW = (venue.roomW || stageW) * GRID, rH = (venue.roomH || stageH) * GRID;
-  const margin = 40;
-  clone.removeAttribute("style");
-  clone.setAttribute("viewBox", `${rx - margin} ${ry - margin} ${rW + margin * 2} ${rH + margin * 2}`);
-  clone.setAttribute("width", "100%");
-  clone.setAttribute("height", "auto");
-  clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
-
-  // Set pieces in placement order, grouped by piece type (Platform, Flat, Chair, ...).
-  // Numbering restarts at 1 inside each type; the sheet for a type stamps those numbers on the plot.
-  const setPieces = elements.filter(e =>
-    e.category !== "lighting" && e.type !== "batten" && e.type !== "textlabel" && e.category !== "notes");
-  const typeLabel = (t) => t === "wall" ? "Wall" : (SET_DEFS[t]?.label || t);
-  const typeOrder = [...Object.keys(SET_DEFS), "wall"];
-  const rank = (t) => { const i = typeOrder.indexOf(t); return i < 0 ? 999 : i; };
-  const groups = [...new Set(setPieces.map(p => p.type))]
-    .sort((a, b) => rank(a) - rank(b))
-    .map(t => ({ type: t, label: typeLabel(t), pieces: setPieces.filter(p => p.type === t) }));
-
-  // WCAG relative luminance, so a badge can be whichever of near-black / white contrasts more with its piece
-  const lum = (hex) => {
-    let h = String(hex || "").replace("#", "");
-    if (h.length === 3) h = h.split("").map(ch => ch + ch).join("");
-    if (!/^[0-9a-fA-F]{6}$/.test(h)) return 0.2;   // unknown colour: treat as mid-dark
-    const [R, G, B] = [0, 2, 4].map(k => {
-      const v = parseInt(h.slice(k, k + 2), 16) / 255;
-      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * R + 0.7152 * G + 0.0722 * B;
-  };
-
-  // Serialize the plot. With a group, every piece is still drawn but only that group's pieces get number badges.
-  const buildSvg = (group) => {
-    const c = clone.cloneNode(true);
-    const g = c.querySelector("g");
-    if (group && g) {
-      const NS = "http://www.w3.org/2000/svg";
-      const vbW = rW + margin * 2;
-      const r = Math.max(8, vbW * 0.011);          // badge size scales with the plot so it prints legibly
-      const layer = document.createElementNS(NS, "g");
-      group.pieces.forEach((p, i) => {
-        const L = lum(p.color);
-        const lightPiece = (L + 0.05) / 0.05 > 1.05 / (L + 0.05);   // black contrasts more than white
-        const badgeFill = lightPiece ? "#111111" : "#ffffff";
-        const badgeText = lightPiece ? "#ffffff" : "#111111";
-        const badgeRing = lightPiece ? "#ffffff" : "#111111";
-        const cx = p.type === "wall" ? ((p.x1||0)+(p.x2||0))/2 : (p.x||0);
-        const cy = p.type === "wall" ? ((p.y1||0)+(p.y2||0))/2 : (p.y||0);
-        const circ = document.createElementNS(NS, "circle");
-        circ.setAttribute("cx", cx); circ.setAttribute("cy", cy); circ.setAttribute("r", r);
-        circ.setAttribute("fill", badgeFill); circ.setAttribute("stroke", badgeRing); circ.setAttribute("stroke-width", r*0.12);
-        const t = document.createElementNS(NS, "text");
-        t.setAttribute("x", cx); t.setAttribute("y", cy);
-        t.setAttribute("text-anchor", "middle"); t.setAttribute("dominant-baseline", "central");
-        t.setAttribute("font-family", "Helvetica Neue, Arial, sans-serif");
-        t.setAttribute("font-weight", "bold"); t.setAttribute("fill", badgeText);
-        t.setAttribute("font-size", String((i+1) >= 10 ? r*1.05 : r*1.25));
-        t.textContent = String(i + 1);
-        layer.appendChild(circ); layer.appendChild(t);
-      });
-      g.appendChild(layer);
-    }
-    return new XMLSerializer().serializeToString(c);
-  };
-
-  const now = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
-  const fixtureCount = elements.filter(e => e.category === "lighting").length;
-  const battenCount = elements.filter(e => e.type === "batten").length;
-  const setCount = elements.filter(e => e.category !== "lighting" && e.type !== "batten").length;
-
-  // ── Set piece schedule: number, name, dimensions, elevation ──
-  const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const fmtFt = (px) => { const v = Math.round((px||0)/GRID*100)/100; return `${v}'`; };
-  const fmtElev = (inches) => {
-    const n = Number(inches) || 0;
-    return n === 0 ? "Floor" : `${Math.round(n*100)/100}"`;
-  };
-  const pieceRow = (p, i) => {
-    const name = p.label || typeLabel(p.type);
-    const dims = p.type === "wall"
-      ? `${fmtFt(Math.hypot((p.x2||0)-(p.x1||0),(p.y2||0)-(p.y1||0)))} long`
-      : `${fmtFt(p.w)} × ${fmtFt(p.h)}`;
-    return `
-      <tr>
-        <td style="text-align:center;font-weight:bold">${i+1}</td>
-        <td><strong>${esc(name)}</strong></td>
-        <td style="text-align:center">${dims}</td>
-        <td style="text-align:center">${fmtElev(p.elevation)}</td>
-        <td>${esc(p.notes)}</td>
-      </tr>`;
-  };
-  const tableHead = `<thead><tr><th style="width:40px">#</th><th>Name</th><th>Dimensions (W × D)</th><th>Elevation</th><th>Notes</th></tr></thead>`;
-
-  // Overview schedule: every piece, grouped by type, numbers restarting per type
-  const overviewScheduleHtml = groups.length ? `
-  <h2>Set Piece Schedule</h2>
-  <table>
-    ${tableHead}
-    <tbody>${groups.map(gr => `
-      <tr class="grp"><td colspan="5">${esc(gr.label)} &mdash; ${gr.pieces.length}</td></tr>
-      ${gr.pieces.map(pieceRow).join("")}`).join("")}
-    </tbody>
-  </table>` : "";
-
-  const titleBlock = (heading, subheading) => `
-  <div class="title-block">
-    <div class="title-main">
-      <div class="show">
-        <h1>${esc(projectInfo.title || "UNTITLED PRODUCTION")}</h1>
-        <div class="sub">${esc(projectInfo.venue || "")}</div>
-      </div>
-      <div style="padding:10px 14px;text-align:right;min-width:200px">
-        <div style="font-size:7.5pt;text-transform:uppercase;color:#888">${subheading}</div>
-        <div style="font-size:22pt;font-weight:900">${heading}</div>
-      </div>
-    </div>
-    <div class="title-meta">
-      <div class="meta-cell"><div class="key">Designer</div><div class="val">${esc(projectInfo.designer || "—")}</div></div>
-      <div class="meta-cell"><div class="key">Director</div><div class="val">${esc(projectInfo.director || "—")}</div></div>
-      <div class="meta-cell"><div class="key">Stage Size</div><div class="val">${stageW}' × ${stageH}'</div></div>
-      <div class="meta-cell"><div class="key">Date</div><div class="val">${now}</div></div>
-      <div class="meta-cell"><div class="key">Revision</div><div class="val">${esc(projectInfo.revision || "1")}</div></div>
-    </div>
-  </div>`;
-
-  const footer = `
-  <footer>
-    <span>Stage Designer App — Generated ${now}</span>
-    <span>${esc(projectInfo.title || "Untitled Production")} | ${esc(projectInfo.venue || "")}</span>
-  </footer>`;
-
-  // Sheet 1: whole design, unnumbered, with the full schedule
-  const overviewPage = `
-<div class="page">
-  ${titleBlock("DESIGN PLOT", "Stage &amp; Lighting")}
-  <div class="summary">
-    <div class="stat"><div class="n">${fixtureCount}</div><div class="k">Lighting Fixtures</div></div>
-    <div class="stat"><div class="n">${setCount}</div><div class="k">Set Pieces</div></div>
-    <div class="stat"><div class="n">${battenCount}</div><div class="k">Battens</div></div>
-    <div class="stat"><div class="n">${venue.roomW || "—"}' × ${venue.roomH || "—"}'</div><div class="k">Room Size</div></div>
-  </div>
-  <div class="plot-frame">${buildSvg(null)}</div>
-  ${overviewScheduleHtml}
-  ${footer}
-</div>`;
-
-  // One extra sheet per piece type: full plot, numbers only on that type, matching table
-  const typePages = opts.numberPieces ? groups.map(gr => `
-<div class="page">
-  ${titleBlock(esc(gr.label.toUpperCase()) + " PLOT", "Set piece numbering")}
-  <div class="plot-frame">${buildSvg(gr)}</div>
-  <h2>${esc(gr.label)} &mdash; ${gr.pieces.length} piece${gr.pieces.length !== 1 ? "s" : ""}</h2>
-  <table>
-    ${tableHead}
-    <tbody>${gr.pieces.map(pieceRow).join("")}</tbody>
-  </table>
-  ${footer}
-</div>`).join("") : "";
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Design Plot — ${esc(projectInfo.title || "Stage Design")}</title>
-<style>
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:"Helvetica Neue",Arial,sans-serif; font-size:10pt; color:#111; background:#fff; }
-  .page { width:11in; padding:0.5in; page-break-after:always; }
-  .page:last-of-type { page-break-after:auto; }
-  @media print { .page { width:100%; padding:0.4in; } .no-print{display:none} }
-
-  .title-block { border:2px solid #222; margin-bottom:16px; }
-  .title-main { display:flex; border-bottom:1px solid #222; }
-  .title-main .show { flex:1; padding:10px 12px; border-right:1px solid #222; }
-  .title-main .show h1 { font-size:18pt; font-weight:900; letter-spacing:1px; }
-  .title-main .show .sub { font-size:10pt; color:#555; margin-top:2px; }
-  .title-meta { display:flex; }
-  .meta-cell { padding:6px 12px; border-right:1px solid #222; min-width:120px; }
-  .meta-cell:last-child { border-right:none; }
-  .meta-cell .key { font-size:7pt; text-transform:uppercase; letter-spacing:1px; color:#888; }
-  .meta-cell .val { font-size:10pt; font-weight:bold; }
-
-  .summary { display:flex; gap:16px; margin-bottom:16px; }
-  .stat { border:1px solid #ddd; border-radius:4px; padding:8px 14px; text-align:center; min-width:90px; }
-  .stat .n { font-size:18pt; font-weight:900; color:#222; }
-  .stat .k { font-size:7.5pt; text-transform:uppercase; letter-spacing:0.5px; color:#888; margin-top:2px; }
-
-  .plot-frame { border:1px solid #222; border-radius:4px; overflow:hidden; background:#1a1a2e; }
-  .plot-frame svg { display:block; width:100%; height:auto; }
-
-  h2 { font-size:11pt; font-weight:900; text-transform:uppercase; letter-spacing:1.5px;
-       border-bottom:2px solid #222; padding-bottom:4px; margin:20px 0 10px; }
-  table { width:100%; border-collapse:collapse; font-size:8.5pt; margin-bottom:20px; }
-  th { background:#222; color:#fff; padding:5px 7px; font-size:7.5pt; text-transform:uppercase; letter-spacing:0.5px; border:1px solid #222; }
-  td { padding:4px 7px; border:1px solid #ccc; vertical-align:middle; }
-  tr:nth-child(even) td { background:#f8f8f8; }
-  tr.grp td { background:#e4e4e4; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; font-size:8pt; }
-  tr { page-break-inside:avoid; }
-
-  .print-btn { position:fixed; top:12px; right:12px; background:#e94560; color:#fff; border:none;
-               padding:10px 20px; border-radius:6px; font-size:11pt; cursor:pointer; font-weight:bold; z-index:999; }
-  .print-btn:hover { background:#c03050; }
-  footer { margin-top:16px; font-size:7.5pt; color:#888; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between; }
-</style>
-</head>
-<body>
-<button class="print-btn no-print" onclick="window.print()">🖨 Print / Save PDF</button>
-${overviewPage}
-${typePages}
-</body>
-</html>`;
-
-  const win = window.open("", "_blank");
-  if (win) {
-    win.document.write(html);
-    win.document.close();
-  }
-}
-
-// ── Shared small button ─────────────────────────────────────────────────────
-  const Btn = ({onClick,children,active,danger,title}) => (
-    <button onClick={onClick} title={title}
-      style={{ background:danger?"#3a1010":active?COLORS.accent:"transparent",
-               color:danger?COLORS.accent:active?"#fff":COLORS.textDim,
-               border:`1px solid ${danger?COLORS.accent:active?COLORS.accent:COLORS.border}`,
-               borderRadius:5, padding:"4px 9px", cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
-      {children}
-    </button>
-  );
-
-  // ── Venue Editor modal ────────────────────────────────────────────────────
-function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, onClose, onApply }) {
-    const [draft, setDraft] = useState({ ...venue });
-    const [activeTab, setActiveTab] = useState("config");
-    const [editingZone, setEditingZone] = useState(null);
-    const [editingVom, setEditingVom] = useState(null);
-
-    const upd = (k, v) => setDraft(d => ({ ...d, [k]: v }));
-    const applyPreset = (presetKey) => {
-      const p = VENUE_CONFIGS[presetKey];
-      setDraft(d => ({
-        ...d, config: p.config,
-        roomW: p.roomW, roomH: p.roomH,
-        stageOffX: p.stageOffX, stageOffY: p.stageOffY,
-        audience: JSON.parse(JSON.stringify(p.audience)),
-        // Shape features
-        curvedApron: p.curvedApron || false,
-        apronRadius: p.apronRadius || 17.75,
-        apronDepth:  p.apronDepth  || 4.833,
-        notch:       p.notch       || false,
-        notchW:      p.notchW      || 13.875,
-        notchD:      p.notchD      || 4.5,
-      }));
-      setStageW(p.stageW); setStageH(p.stageH);
-    };
-
-    const previewScale = 3.5;
-    const pW = draft.roomW * previewScale, pH = draft.roomH * previewScale;
-    const sX = (draft.stageOffX||0)*previewScale, sY = (draft.stageOffY||0)*previewScale;
-    const sSW = stageW * previewScale, sSH = stageH * previewScale;
-
-    const tabStyle = (id) => ({
-      padding: "7px 14px", background: activeTab===id ? COLORS.bg : "transparent",
-      color: activeTab===id ? COLORS.accent : COLORS.textDim, border:"none", cursor:"pointer",
-      fontSize:11, fontFamily:"inherit", borderBottom: activeTab===id ? `2px solid ${COLORS.accent}` : "2px solid transparent",
-    });
-    const fieldStyle = { width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"5px 7px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" };
-    const labelStyle = { fontSize:9, color:COLORS.textDim, marginBottom:3, textTransform:"uppercase", letterSpacing:0.5 };
-
-    return (
-      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, width:780, maxWidth:"96vw", maxHeight:"90vh", display:"flex", flexDirection:"column" }}>
-
-          {/* Header */}
-          <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
-            <span style={{ flex:1, fontSize:14, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>🏛 VENUE SPACE EDITOR</span>
-            <button onClick={onClose} style={{ background:"transparent", color:COLORS.textDim, border:"none", fontSize:20, cursor:"pointer" }}>✕</button>
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display:"flex", borderBottom:`1px solid ${COLORS.border}` }}>
-            {[["config","Configuration"],["room","Room Shape"],["audience","Seating"],["access","Access"]].map(([id,lbl])=>(
-              <button key={id} style={tabStyle(id)} onClick={()=>setActiveTab(id)}>{lbl}</button>
-            ))}
-          </div>
-
-          <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
-
-            {/* Left: controls */}
-            <div style={{ flex:1, overflowY:"auto", padding:18 }}>
-
-              {/* ── Config tab ── */}
-              {activeTab === "config" && (
-                <div>
-                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Choose a staging configuration preset to set up your room quickly. You can customize everything after.</div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20 }}>
-                    {Object.entries(VENUE_CONFIGS).map(([key,cfg])=>(
-                      <div key={key} onClick={()=>applyPreset(key)}
-                        style={{ padding:"10px 12px", background: draft.config===key ? "#1a2a3a" : COLORS.bg,
-                          border:`1px solid ${draft.config===key ? COLORS.accent : COLORS.border}`,
-                          borderRadius:6, cursor:"pointer", transition:"all 0.15s" }}
-                        onMouseEnter={e=>{ if(draft.config!==key) e.currentTarget.style.borderColor=COLORS.hover; }}
-                        onMouseLeave={e=>{ if(draft.config!==key) e.currentTarget.style.borderColor=COLORS.border; }}>
-                        <div style={{ fontSize:18, marginBottom:3 }}>{cfg.icon}</div>
-                        <div style={{ fontSize:12, fontWeight:"bold", color: draft.config===key ? COLORS.accent : COLORS.text }}>{cfg.label}</div>
-                        <div style={{ fontSize:10, color:COLORS.textDim, marginTop:2 }}>{cfg.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>STAGE DIMENSIONS</div>
-                  <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-                    {[["Stage Width (ft)","stageW",stageW,setStageW],["Stage Depth (ft)","stageH",stageH,setStageH]].map(([lbl,key,val,setter])=>(
-                      <div key={key} style={{ flex:1 }}>
-                        <div style={labelStyle}>{lbl}</div>
-                        <input type="number" value={val} min={8} max={300} onChange={e=>setter(+e.target.value)} style={fieldStyle}/>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>ROOM DIMENSIONS</div>
-                  <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-                    {[["Room Width (ft)","roomW"],["Room Depth (ft)","roomH"]].map(([lbl,key])=>(
-                      <div key={key} style={{ flex:1 }}>
-                        <div style={labelStyle}>{lbl}</div>
-                        <input type="number" value={draft[key]||60} min={10} max={500} onChange={e=>upd(key,+e.target.value)} style={fieldStyle}/>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>STAGE POSITION WITHIN ROOM</div>
-                  <div style={{ display:"flex", gap:10, marginBottom:8 }}>
-                    {[["Offset from SR Wall (ft)","stageOffX"],["Offset from US Wall (ft)","stageOffY"]].map(([lbl,key])=>(
-                      <div key={key} style={{ flex:1 }}>
-                        <div style={labelStyle}>{lbl}</div>
-                        <input type="number" value={draft[key]||0} min={0} max={100} onChange={e=>upd(key,+e.target.value)} style={fieldStyle}/>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ marginBottom:12 }}>
-                    <div style={labelStyle}>Total House Seats</div>
-                    <input type="number" value={draft.houseSeats||0} min={0} max={5000} onChange={e=>upd("houseSeats",+e.target.value)} style={{ ...fieldStyle, width:120 }}/>
-                  </div>
-
-                  <div style={{ marginBottom:12 }}>
-                    <div style={labelStyle}>Upstage Orientation</div>
-                    <div style={{ display:"flex", gap:6 }}>
-                      {[["N","Top (default)"],["S","Bottom"],["W","Left"],["E","Right"]].map(([v,lbl])=>(
-                        <button key={v} onClick={()=>upd("orientation",v)}
-                          style={{ flex:1, padding:"5px 4px", fontSize:10, background:draft.orientation===v?COLORS.accent:"transparent", color:draft.orientation===v?"#fff":COLORS.textDim, border:`1px solid ${draft.orientation===v?COLORS.accent:COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-                    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:COLORS.text, cursor:"pointer" }}>
-                      <input type="checkbox" checked={draft.showRoom!==false} onChange={e=>upd("showRoom",e.target.checked)}/> Show room outline
-                    </label>
-                    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:COLORS.text, cursor:"pointer" }}>
-                      <input type="checkbox" checked={draft.showAudience!==false} onChange={e=>upd("showAudience",e.target.checked)}/> Show audience zones
-                    </label>
-                  </div>
-
-                  {/* ── Stage shape ── */}
-                  <div style={{ fontSize:9, color:COLORS.accent, marginBottom:8, letterSpacing:1 }}>STAGE SHAPE</div>
-
-                  {/* Curved apron */}
-                  <div style={{ background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
-                    <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:COLORS.text, cursor:"pointer", marginBottom: draft.curvedApron ? 12 : 0 }}>
-                      <input type="checkbox" checked={!!draft.curvedApron} onChange={e=>upd("curvedApron",e.target.checked)}/>
-                      <span style={{ fontWeight:"bold" }}>Curved Downstage Apron</span>
-                    </label>
-                    {draft.curvedApron && (
-                      <div style={{ display:"flex", gap:10 }}>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>ARC RADIUS (ft)</div>
-                          <input type="number" value={draft.apronRadius??17.75} min={5} max={100} step={0.25}
-                            onChange={e=>upd("apronRadius",+e.target.value)}
-                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 17.75</div>
-                        </div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>DEPTH AT CENTER (ft)</div>
-                          <input type="number" value={draft.apronDepth??4.833} min={0.5} max={20} step={0.083}
-                            onChange={e=>upd("apronDepth",+e.target.value)}
-                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 4.83 (4'10")</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* US Notch */}
-                  <div style={{ background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
-                    <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:COLORS.text, cursor:"pointer", marginBottom: draft.notch ? 12 : 0 }}>
-                      <input type="checkbox" checked={!!draft.notch} onChange={e=>upd("notch",e.target.checked)}/>
-                      <span style={{ fontWeight:"bold" }}>Upstage Recessed Section</span>
-                    </label>
-                    {draft.notch && (
-                      <div style={{ display:"flex", gap:10 }}>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>RECESSED CENTER WIDTH (ft)</div>
-                          <input type="number" value={draft.notchW??13.875} min={1} max={50} step={0.083}
-                            onChange={e=>upd("notchW",+e.target.value)}
-                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 13.875 (13'10½") — center section</div>
-                        </div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>WING STEP DEPTH (ft)</div>
-                          <input type="number" value={draft.notchD??4.5} min={0.5} max={20} step={0.083}
-                            onChange={e=>upd("notchD",+e.target.value)}
-                            style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Burgdorff = 4.5 (4'6") — how far wings step DS</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── Room tab ── */}
-              {activeTab === "room" && (
-                <div>
-                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:14 }}>Customize room colors and appearance.</div>
-                  <div style={{ display:"flex", gap:12, marginBottom:14 }}>
-                    <div style={{ flex:1 }}>
-                      <div style={labelStyle}>Room Fill Color</div>
-                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        <input type="color" value={draft.roomColor||"#111118"} onChange={e=>upd("roomColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
-                        <input value={draft.roomColor||"#111118"} onChange={e=>upd("roomColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
-                      </div>
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={labelStyle}>Room Border Color</div>
-                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        <input type="color" value={draft.roomBorderColor||"#3a3a5a"} onChange={e=>upd("roomBorderColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
-                        <input value={draft.roomBorderColor||"#3a3a5a"} onChange={e=>upd("roomBorderColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <div style={labelStyle}>Default Audience Zone Color</div>
-                    <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:16 }}>
-                      <input type="color" value={draft.audienceColor||"#1a2a1a"} onChange={e=>upd("audienceColor",e.target.value)} style={{ width:48, height:32, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
-                      <input value={draft.audienceColor||"#1a2a1a"} onChange={e=>upd("audienceColor",e.target.value)} style={{ ...fieldStyle, flex:1 }}/>
-                    </div>
-                  </div>
-                  <div style={{ padding:12, background:COLORS.bg, borderRadius:6, fontSize:11, color:COLORS.textDim, border:`1px solid ${COLORS.border}` }}>
-                    💡 Tip: For non-rectangular rooms (L-shaped, hexagonal, etc.), use the Wall drawing tool on the canvas to draw the room boundary as architectural walls on the Set layer.
-                  </div>
-                </div>
-              )}
-
-              {/* ── Audience / Seating tab ── */}
-              {activeTab === "audience" && (
-                <div>
-                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Define audience seating zones. Each zone appears as a shaded rectangle with seat row lines.</div>
-                  <button onClick={()=>{
-                    const newZone = { x:2, y: (draft.roomH||50)-15, w: (draft.roomW||50)-4, h:12, label:`Zone ${(draft.audience||[]).length+1}`, seats:80, color:"" };
-                    upd("audience", [...(draft.audience||[]), newZone]);
-                    setEditingZone((draft.audience||[]).length);
-                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
-                    + Add Seating Zone
-                  </button>
-
-                  {(draft.audience||[]).length === 0 && (
-                    <div style={{ color:COLORS.textDim, fontSize:11, padding:20, textAlign:"center" }}>No seating zones defined yet.</div>
-                  )}
-
-                  {(draft.audience||[]).map((az,i)=>(
-                    <div key={i} style={{ background:COLORS.bg, border:`1px solid ${editingZone===i?COLORS.accent:COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                        <div style={{ flex:1, fontSize:12, fontWeight:"bold", color:COLORS.text }}>{az.label}</div>
-                        <button onClick={()=>setEditingZone(editingZone===i?null:i)} style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
-                          {editingZone===i?"▲ Collapse":"▼ Edit"}
-                        </button>
-                        <button onClick={()=>{ const a=[...draft.audience]; a.splice(i,1); upd("audience",a); if(editingZone===i)setEditingZone(null); }}
-                          style={{ fontSize:10, padding:"3px 8px", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
-                      </div>
-                      {editingZone===i && (
-                        <div>
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                            {[["Label","label","text"],["Seat Count","seats","number"],["X from SR (ft)","x","number"],["Y from US (ft)","y","number"],["Width (ft)","w","number"],["Height (ft)","h","number"]].map(([lbl,key,type])=>(
-                              <div key={key}>
-                                <div style={labelStyle}>{lbl}</div>
-                                <input type={type} value={az[key]??""} onChange={e=>{
-                                  const a=[...draft.audience];
-                                  a[i]={...a[i],[key]:type==="number"?+e.target.value:e.target.value};
-                                  upd("audience",a);
-                                }} style={fieldStyle}/>
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{ marginTop:8 }}>
-                            <div style={labelStyle}>Zone Color (leave blank for default)</div>
-                            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                              <input type="color" value={az.color||draft.audienceColor||"#1a2a1a"} onChange={e=>{ const a=[...draft.audience]; a[i]={...a[i],color:e.target.value}; upd("audience",a); }}
-                                style={{ width:40, height:28, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", background:"none" }}/>
-                              <button onClick={()=>{ const a=[...draft.audience]; a[i]={...a[i],color:""}; upd("audience",a); }}
-                                style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>Reset to default</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ── Access / Vomitories tab ── */}
-              {activeTab === "access" && (
-                <div>
-                  <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:12 }}>Add vomitory entrances / exits cut through the room walls. Position is expressed as a fraction (0=SR/US edge, 1=SL/DS edge).</div>
-                  <button onClick={()=>{
-                    const newV = { wall:"S", pos:0.5, w:4, label:`Vom ${(draft.vomitories||[]).length+1}` };
-                    upd("vomitories", [...(draft.vomitories||[]), newV]);
-                    setEditingVom((draft.vomitories||[]).length);
-                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
-                    + Add Vomitory
-                  </button>
-
-                  {(draft.vomitories||[]).length === 0 && (
-                    <div style={{ color:COLORS.textDim, fontSize:11, padding:20, textAlign:"center" }}>No vomitories defined.</div>
-                  )}
-
-                  {(draft.vomitories||[]).map((vom,i)=>(
-                    <div key={i} style={{ background:COLORS.bg, border:`1px solid ${editingVom===i?COLORS.accent:COLORS.border}`, borderRadius:6, padding:12, marginBottom:10 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: editingVom===i?8:0 }}>
-                        <div style={{ flex:1, fontSize:12, color:COLORS.text }}>{vom.label||`Vom ${i+1}`} — Wall: {vom.wall}</div>
-                        <button onClick={()=>setEditingVom(editingVom===i?null:i)} style={{ fontSize:10, padding:"3px 8px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
-                          {editingVom===i?"▲":"▼ Edit"}
-                        </button>
-                        <button onClick={()=>{ const v=[...draft.vomitories]; v.splice(i,1); upd("vomitories",v); }}
-                          style={{ fontSize:10, padding:"3px 8px", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
-                      </div>
-                      {editingVom===i && (
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                          <div>
-                            <div style={labelStyle}>Label</div>
-                            <input value={vom.label||""} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],label:e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
-                          </div>
-                          <div>
-                            <div style={labelStyle}>Wall</div>
-                            <select value={vom.wall} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],wall:e.target.value}; upd("vomitories",v); }} style={fieldStyle}>
-                              <option value="N">North (Upstage)</option>
-                              <option value="S">South (Downstage)</option>
-                              <option value="W">West (SR)</option>
-                              <option value="E">East (SL)</option>
-                            </select>
-                          </div>
-                          <div>
-                            <div style={labelStyle}>Position (0–1)</div>
-                            <input type="number" min={0} max={1} step={0.05} value={vom.pos??0.5} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],pos:+e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
-                          </div>
-                          <div>
-                            <div style={labelStyle}>Opening Width (ft)</div>
-                            <input type="number" min={2} max={30} value={vom.w??4} onChange={e=>{ const v=[...draft.vomitories]; v[i]={...v[i],w:+e.target.value}; upd("vomitories",v); }} style={fieldStyle}/>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Right: live preview */}
-            <div style={{ width:220, borderLeft:`1px solid ${COLORS.border}`, padding:14, background:COLORS.bg, display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
-              <div style={{ fontSize:9, color:COLORS.textDim, letterSpacing:1, marginBottom:4 }}>LIVE PREVIEW</div>
-              <svg width={pW} height={pH} style={{ border:`1px solid ${COLORS.border}`, borderRadius:4, display:"block", maxWidth:"100%" }}>
-                {/* Room */}
-                <rect x={0} y={0} width={pW} height={pH} fill={draft.roomColor||"#111118"} stroke={draft.roomBorderColor||"#3a3a5a"} strokeWidth={2}/>
-                {/* Audience zones */}
-                {(draft.audience||[]).map((az,i)=>(
-                  <rect key={i} x={az.x*previewScale} y={az.y*previewScale} width={az.w*previewScale} height={az.h*previewScale}
-                    fill={az.color||draft.audienceColor||"#1a2a1a"} stroke="#3a5a3a" strokeWidth={1}/>
-                ))}
-                {/* Audience labels */}
-                {(draft.audience||[]).map((az,i)=>(
-                  <text key={i} x={(az.x+az.w/2)*previewScale} y={(az.y+az.h/2)*previewScale} fill="#4a7a4a" fontSize={7} textAnchor="middle" dominantBaseline="middle">{az.label}</text>
-                ))}
-                {/* Stage */}
-                {(() => {
-                  const psD = (draft.apronDepth||4.833)*previewScale;
-                  const psR = (sSW*sSW/4 + psD*psD)/(2*psD);
-                  const pnW = (draft.notchW||13.875)*previewScale;
-                  const pnD = (draft.notchD||4.5)*previewScale;
-                  const pnX1 = sX+(sSW-pnW)/2, pnX2 = sX+(sSW+pnW)/2;
-                  let pd;
-                  if (draft.curvedApron && draft.notch) {
-                    pd = `M ${sX},${sY+pnD} L ${pnX1},${sY+pnD} L ${pnX1},${sY} L ${pnX2},${sY} L ${pnX2},${sY+pnD} L ${sX+sSW},${sY+pnD} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
-                  } else if (draft.curvedApron) {
-                    pd = `M ${sX},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} A ${psR},${psR} 0 0,1 ${sX},${sY+sSH} Z`;
-                  } else if (draft.notch) {
-                    pd = `M ${sX},${sY+pnD} L ${pnX1},${sY+pnD} L ${pnX1},${sY} L ${pnX2},${sY} L ${pnX2},${sY+pnD} L ${sX+sSW},${sY+pnD} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
-                  } else {
-                    pd = `M ${sX},${sY} L ${sX+sSW},${sY} L ${sX+sSW},${sY+sSH} L ${sX},${sY+sSH} Z`;
-                  }
-                  return <path d={pd} fill={COLORS.stage} stroke={COLORS.stageEdge} strokeWidth={2}/>;
-                })()}
-                <text x={sX+sSW/2} y={sY+sSH/2} fill={COLORS.stageEdge} fontSize={7} textAnchor="middle" dominantBaseline="middle">STAGE</text>
-                {/* Plasterline — downstage edge of the main deck, where the apron begins */}
-                <line x1={sX} y1={sY+sSH} x2={sX+sSW} y2={sY+sSH} stroke={COLORS.stageEdge} strokeWidth={1.5} strokeDasharray="4,3"/>
-              </svg>
-              <div style={{ fontSize:9, color:COLORS.textDim, lineHeight:1.6 }}>
-                Room: {draft.roomW}' × {draft.roomH}'<br/>
-                Stage: {stageW}' × {stageH}'<br/>
-                Seats: {draft.houseSeats||0}<br/>
-                Config: {VENUE_CONFIGS[draft.config]?.label||draft.config}
-              </div>
-              {/* Quick audience adder */}
-              <div style={{ marginTop:"auto", fontSize:9, color:COLORS.textDim }}>
-                Audience zones: {(draft.audience||[]).length}
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div style={{ display:"flex", justifyContent:"flex-end", gap:8, padding:"12px 18px", borderTop:`1px solid ${COLORS.border}` }}>
-            <button onClick={onClose} style={{ padding:"7px 18px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Cancel</button>
-            <button onClick={()=>onApply(draft)}
-              style={{ padding:"7px 20px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:"bold" }}>
-              ✓ Apply Venue
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ── Project info modal ────────────────────────────────────────────────────
-function ProjectInfoModal({ projectInfo, setProjectInfo, onClose }) {
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:24, width:420, maxWidth:"90vw" }}>
-        <div style={{ fontSize:13, fontWeight:"bold", color:COLORS.accent, marginBottom:16, letterSpacing:1 }}>PROJECT INFORMATION</div>
-        {[["Production Title","title"],["Venue","venue"],["Lighting Designer","designer"],["Director","director"],["Revision #","revision"]].map(([lbl,key])=>(
-          <div key={key} style={{ marginBottom:10 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>{lbl}</div>
-            <input value={projectInfo[key]||""} onChange={e=>setProjectInfo(p=>({...p,[key]:e.target.value}))}
-              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"6px 8px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-          </div>
-        ))}
-        <div style={{ display:"flex", gap:8, marginTop:16, justifyContent:"flex-end" }}>
-          <Btn onClick={onClose}>Cancel</Btn>
-          <Btn active onClick={onClose}>Save</Btn>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Channel Schedule modal ────────────────────────────────────────────────
-function ScheduleModal({ projectInfo, elements, stageW, stageH, lightingEls, battens, setSelected, onClose, setSidebarTab }) {
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:0, width:860, maxWidth:"95vw", maxHeight:"85vh", display:"flex", flexDirection:"column" }}>
-        <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
-          <span style={{ flex:1, fontSize:13, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>INSTRUMENT SCHEDULE — {projectInfo.title||"Untitled"}</span>
-          <Btn active onClick={()=>generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo)}>🖨 Print / PDF</Btn>
-          <button onClick={onClose} style={{ marginLeft:8, background:"transparent", color:COLORS.textDim, border:"none", fontSize:18, cursor:"pointer" }}>✕</button>
-        </div>
-        <div style={{ flex:1, overflowY:"auto", padding:16 }}>
-          {lightingEls.length === 0
-            ? <div style={{ textAlign:"center", padding:40, color:COLORS.textDim }}>No lighting fixtures in plot yet.</div>
-            : <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                <thead>
-                  <tr style={{ background:COLORS.bg }}>
-                    {["Ch","Dimmer","Fixture Type","Label","Batten","Gel","Angle","X (ft)","Y (ft)","Notes"].map(h=>(
-                      <th key={h} style={{ padding:"6px 10px", textAlign:"left", color:COLORS.textDim, fontSize:9, textTransform:"uppercase", letterSpacing:0.5, borderBottom:`1px solid ${COLORS.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {lightingEls.map(f=>{
-                    const gel = GEL_PRESETS.find(g=>g.code===f.gelCode)||{code:"Open",name:"Open White",hex:"#fff"};
-                    const batten = battens.find(b=>b.id===f.battenId);
-                    return (
-                      <tr key={f.id} onClick={()=>{setSelected(f.id);onClose();setSidebarTab("props");}}
-                        style={{ cursor:"pointer", borderBottom:`1px solid ${COLORS.border}` }}
-                        onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
-                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <td style={{ padding:"5px 10px", fontWeight:"bold", color:COLORS.accent }}>{f.channel}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.dimmer||"—"}</td>
-                        <td style={{ padding:"5px 10px" }}>{FIXTURE_DEFS[f.type]?.label||f.type}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.text }}>{f.label}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{batten?.label||"—"}</td>
-                        <td style={{ padding:"5px 10px" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                            <div style={{ width:12, height:12, borderRadius:"50%", background:gel.hex, border:"1px solid #666", flexShrink:0 }}/>
-                            <span style={{ color:COLORS.textDim, fontSize:10 }}>{gel.code}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.focusAngle}°</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{((f.x||0)/GRID).toFixed(1)}'</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{((f.y||0)/GRID).toFixed(1)}'</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{f.notes||""}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-          }
-          {battens.length > 0 && (
-            <>
-              <div style={{ fontSize:10, color:COLORS.accent, letterSpacing:1, marginTop:20, marginBottom:8, borderTop:`1px solid ${COLORS.border}`, paddingTop:12 }}>BATTEN SCHEDULE</div>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
-                <thead>
-                  <tr style={{ background:COLORS.bg }}>
-                    {["Name","Range","DS Depth","Trim Height","Fixtures"].map(h=>(
-                      <th key={h} style={{ padding:"6px 10px", textAlign:"left", color:COLORS.textDim, fontSize:9, textTransform:"uppercase", borderBottom:`1px solid ${COLORS.border}` }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {battens.map(b=>{
-                    const fx = lightingEls.filter(f=>f.battenId===b.id);
-                    const x1ft = ((b.x1)/GRID).toFixed(1), x2ft = ((b.x2)/GRID).toFixed(1);
-                    const yft = ((b.y1)/GRID).toFixed(1);
-                    return (
-                      <tr key={b.id} style={{ borderBottom:`1px solid ${COLORS.border}` }}>
-                        <td style={{ padding:"5px 10px", fontWeight:"bold", color:COLORS.batten }}>{b.label}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{x1ft}' → {x2ft}'</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{yft}'</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{b.trim||"—"}</td>
-                        <td style={{ padding:"5px 10px", color:COLORS.textDim }}>{fx.length>0?fx.map(f=>`Ch ${f.channel}`).join(", "):"None assigned"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Bounding box of any element, in canvas units (used by the box-select tool) ──
-function elBounds(el) {
-  if (el.x1 !== undefined) {
-    return { l:Math.min(el.x1,el.x2)-3, r:Math.max(el.x1,el.x2)+3, t:Math.min(el.y1,el.y2)-3, b:Math.max(el.y1,el.y2)+3 };
-  }
-  if (el.type === "textlabel") {
-    const h = el.fontSize || 14, w = (el.label || "Label").length * h * 0.6;
-    return { l:el.x - w/2, r:el.x + w/2, t:el.y - h, b:el.y };
-  }
-  const rad = (el.rotation || 0) * Math.PI / 180, w = el.w || 0, h = el.h || 0;
-  const hx = (Math.abs(w*Math.cos(rad)) + Math.abs(h*Math.sin(rad))) / 2;
-  const hy = (Math.abs(w*Math.sin(rad)) + Math.abs(h*Math.cos(rad))) / 2;
-  return { l:(el.x||0)-hx, r:(el.x||0)+hx, t:(el.y||0)-hy, b:(el.y||0)+hy };
-}
-
-// ── Panel shown while several elements are selected ───────────────────────
-function GroupPanel({ ids, elements, onCopy, onDuplicate, onDelete, onClear, moveZ }) {
-  const picked = elements.filter(e => ids.includes(e.id));
-  const counts = {};
-  picked.forEach(e => {
-    const name = e.type === "wall" ? "Wall" : e.type === "batten" ? "Batten" : e.type === "textlabel" ? "Text label"
-      : e.category === "lighting" ? (FIXTURE_DEFS[e.type]?.label || e.type) : (SET_DEFS[e.type]?.label || e.type);
-    counts[name] = (counts[name] || 0) + 1;
+// Older files (version 1–2) are brought up to the v3 model: lighting gets a mount, set pieces an elevation.
+function migrateElements(list) {
+  return (Array.isArray(list) ? list : []).map((el) => {
+    if (!el || typeof el !== "object") return el;
+    if (el.category === "lighting" && el.mount === undefined) return { ...el, mount: "batten" };
+    if (el.category === "set" && el.elevation === undefined && el.x1 === undefined) return { ...el, elevation: 0 };
+    return el;
   });
-  const btn = { background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" };
-  return (
-    <div style={{ flex:1, overflowY:"auto", padding:10 }}>
-      <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>GROUP SELECTION</div>
-      <div style={{ fontSize:14, fontWeight:"bold", color:COLORS.text, marginBottom:6 }}>{picked.length} items selected</div>
-      <div style={{ marginBottom:10 }}>
-        {Object.entries(counts).map(([name,n]) => (
-          <div key={name} style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:COLORS.textDim, padding:"2px 0" }}>
-            <span>{name}</span><span>{n}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize:10, color:COLORS.textDim, lineHeight:1.5, marginBottom:10 }}>
-        Drag any selected item to move them all. Arrow keys nudge the group. Shift+click adds or removes an item.
-      </div>
-      <div style={{ display:"flex", gap:6 }}>
-        <button onClick={onCopy} style={{ ...btn, flex:1 }}>⎘ Copy</button>
-        <button onClick={onDuplicate} style={{ ...btn, flex:1 }}>⧉ Duplicate</button>
-      </div>
-      <div style={{ marginTop:10 }}>
-        <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>ARRANGE  ( ] [ )</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
-          {[["⤒ To Front","front"],["↑ Forward","forward"],["↓ Backward","backward"],["⤓ To Back","back"]].map(([lbl,mode])=>(
-            <button key={mode} onClick={()=>moveZ(mode)} style={{ ...btn, padding:"5px 0", fontSize:10 }}>{lbl}</button>
-          ))}
-        </div>
-      </div>
-      <button onClick={onClear} style={{ ...btn, marginTop:10, width:"100%" }}>Deselect</button>
-      <button onClick={onDelete}
-        style={{ marginTop:6, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-        🗑 Delete {picked.length} Items
-      </button>
-    </div>
-  );
 }
-
-// ── Properties panel content ──────────────────────────────────────────────
-function PropsPanel({ selEl, updateEl, battens, setElements, setSelected, selected, copySelected, pasteClipboard, duplicateSelected, hasClipboard, moveZ }) {
-    if (!selEl) return (
-      <div style={{ padding:16, fontSize:11, color:COLORS.textDim, textAlign:"center", marginTop:20 }}>
-        Select an element to edit its properties
-      </div>
-    );
-
-    const isBatten = selEl.type === "batten";
-    const isLight = selEl.category === "lighting";
-    const isText = selEl.type === "textlabel";
-
-    return (
-      <div style={{ flex:1, overflowY:"auto", padding:10 }}>
-        <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>ELEMENT PROPERTIES</div>
-
-        {/* Label / name */}
-        {[
-          ["Label / Name","label","text"],
-          ...(isLight ? [
-            ["Channel #","channel","number"],
-            ["Dimmer","dimmer","text"],
-            ["Focus Angle °","focusAngle","number"],
-          ] : []),
-          ...(isBatten ? [["Trim Height (ft)","trim","text"]] : []),
-          ...(!isBatten ? [["Rotation °","rotation","number"]] : []),
-          ...(isText ? [["Font Size","fontSize","number"]] : []),
-        ].map(([lbl,key,type])=>(
-          <div key={key} style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
-            <input type={type} value={selEl[key]??""} onChange={e=>updateEl(key, type==="number"?+e.target.value:e.target.value)}
-              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-          </div>
-        ))}
-
-        {/* Width / Height (ft) — converted from internal px units, same pattern as Position */}
-        {!isBatten && !isText && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>SIZE (ft)</div>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["W","w"],["H","h"]].map(([lbl,key])=>(
-                <div key={key}>
-                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
-                  <input type="number" value={Math.round((selEl[key]||0)/GRID*100)/100}
-                    onChange={e=>updateEl(key,+e.target.value*GRID)}
-                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Elevation — height of the top surface above the stage floor, in inches */}
-        {!isBatten && !isText && !isLight && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>ELEVATION (in)</div>
-            <input type="number" min="0" step="1" value={selEl.elevation ?? 0}
-              onChange={e=>updateEl("elevation", Math.max(0, +e.target.value))}
-              style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-            <span style={{ fontSize:9, color:COLORS.textDim, marginLeft:6 }}>0 = on stage floor</span>
-          </div>
-        )}
-
-        {/* Color */}
-        {!isLight && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>Color</div>
-            <input type="color" value={selEl.color||"#888888"} onChange={e=>updateEl("color",e.target.value)}
-              style={{ width:"100%", height:30, background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer" }}/>
-          </div>
-        )}
-
-        {/* Gel assignment for lighting */}
-        {isLight && (
-          <>
-            <div style={{ marginBottom:8 }}>
-              <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>GEL COLOR</div>
-              <select value={selEl.gelCode||"Open"} onChange={e=>updateEl("gelCode",e.target.value)}
-                style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
-                {GEL_PRESETS.map(g=><option key={g.code} value={g.code}>{g.code} — {g.name}</option>)}
-              </select>
-              {selEl.gelCode && (
-                <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4 }}>
-                  <div style={{ width:16, height:16, borderRadius:"50%", background:GEL_PRESETS.find(g=>g.code===selEl.gelCode)?.hex||"#888", border:"1px solid #555" }}/>
-                  <span style={{ fontSize:10, color:COLORS.textDim }}>{GEL_PRESETS.find(g=>g.code===selEl.gelCode)?.name}</span>
-                </div>
-              )}
-            </div>
-            <div style={{ marginBottom:8 }}>
-              <div style={{ fontSize:9, color:COLORS.textDim }}>Show Beam</div>
-              <button onClick={()=>updateEl("focused",!selEl.focused)}
-                style={{ background:selEl.focused?COLORS.accent:COLORS.bg, color:selEl.focused?"#fff":COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 14px", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-                {selEl.focused?"On":"Off"}
-              </button>
-            </div>
-            <div style={{ marginBottom:8 }}>
-              <div style={{ fontSize:9, color:COLORS.textDim }}>ASSIGN TO BATTEN</div>
-              <select value={selEl.battenId||""} onChange={e=>updateEl("battenId",e.target.value||null)}
-                style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
-                <option value="">— None —</option>
-                {battens.map(b=><option key={b.id} value={b.id}>{b.label}</option>)}
-              </select>
-            </div>
-          </>
-        )}
-
-        {/* Notes */}
-        {!isText && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>Notes</div>
-            <textarea value={selEl.notes||""} onChange={e=>updateEl("notes",e.target.value)} rows={2}
-              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit", resize:"vertical", boxSizing:"border-box" }}/>
-          </div>
-        )}
-
-        {/* Layer */}
-        <div style={{ marginBottom:8 }}>
-          <div style={{ fontSize:9, color:COLORS.textDim }}>Layer</div>
-          <select value={selEl.layer||"set"} onChange={e=>updateEl("layer",e.target.value)}
-            style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:11, fontFamily:"inherit" }}>
-            {LAYERS.map(l=><option key={l.id} value={l.id}>{l.label}</option>)}
-          </select>
-        </div>
-
-        {/* Position */}
-        {!isBatten && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>POSITION (ft)</div>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["X","x"],["Y","y"]].map(([lbl,key])=>(
-                <div key={key}>
-                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
-                  <input type="number" value={Math.round((selEl[key]||0)/GRID*10)/10}
-                    onChange={e=>updateEl(key,+e.target.value*GRID)}
-                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Batten position — endpoints + depth, editable numerically as well as by dragging */}
-        {isBatten && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>POSITION (ft)</div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-              {[["X1 (SR)","x1"],["X2 (SL)","x2"]].map(([lbl,key])=>(
-                <div key={key}>
-                  <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
-                  <input type="number" value={Math.round((selEl[key]||0)/GRID*10)/10}
-                    onChange={e=>updateEl(key,+e.target.value*GRID)}
-                    style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-                </div>
-              ))}
-              <div>
-                <div style={{ fontSize:9, color:COLORS.textDim }}>Depth (Y)</div>
-                <input type="number" value={Math.round((selEl.y1||0)/GRID*10)/10}
-                  onChange={e=>{ const v=+e.target.value*GRID; updateEl("y1",v); updateEl("y2",v); }}
-                  style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-              </div>
-            </div>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginTop:5 }}>
-              Length: {(Math.hypot((selEl.x2||0)-(selEl.x1||0), (selEl.y2||0)-(selEl.y1||0))/GRID).toFixed(1)}'
-            </div>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginTop:3 }}>
-              Tip: drag the pipe on the canvas to move it, or drag the gold endpoint handles to resize.
-            </div>
-          </div>
-        )}
-
-        <div style={{ display:"flex", gap:6, marginTop:12 }}>
-          <button onClick={copySelected}
-            style={{ flex:1, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-            ⎘ Copy
-          </button>
-          <button onClick={duplicateSelected}
-            style={{ flex:1, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-            ⧉ Duplicate
-          </button>
-        </div>
-        {hasClipboard && (
-          <button onClick={pasteClipboard}
-            style={{ marginTop:6, width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-            📋 Paste Copy
-          </button>
-        )}
-
-        {/* Stacking order */}
-        <div style={{ marginTop:10 }}>
-          <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>ARRANGE  ( ] forward · [ back · Shift = all the way )</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
-            {[["⤒ To Front","front"],["↑ Forward","forward"],["↓ Backward","backward"],["⤓ To Back","back"]].map(([lbl,mode])=>(
-              <button key={mode} onClick={()=>moveZ(mode)}
-                style={{ background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"5px 0", cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>
-                {lbl}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button onClick={()=>{setElements(prev=>prev.filter(e=>e.id!==selected));setSelected(null);}}
-          style={{ marginTop:6, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-          🗑 Delete Element
-        </button>
-      </div>
-    );
-  };
+// ── Share links: the whole plan is compressed into the URL hash (#share=…), no server involved ──
+const b64u = (u8) => btoa(String.fromCharCode(...u8)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const fromB64u = (t) => Uint8Array.from(atob(t.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+const SHARED = (() => { try { const m = location.hash.match(/^#share=(.+)$/); return m ? JSON.parse(strFromU8(unzlibSync(fromB64u(m[1])))) : null; } catch { return null; } })();
+const _auto = (() => { const d = SHARED || loadAutosave(); if (d?.elements) d.elements = migrateElements(d.elements); return d; })();
+if (_auto?.elements?.length) _id = Math.max(_id, ..._auto.elements.map((e) => parseInt(String(e.id).replace("el_", "")) || 0)) + 1;
 
 // ── Main app ──────────────────────────────────────────────────────────────────
 export default function StageDesigner() {
   const svgRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [elements, setElements] = useState([]);
+  const [elements, setElementsRaw] = useState(() => _auto?.elements ?? []);
+  // ── undo / redo ───────────────────────────────────────────────────────────
+  // Every change to the plan goes through setElements, which records the previous plan. Quick bursts of
+  // changes (dragging, typing, nudging) merge into one step; each new pointer press starts a new step.
+  const elementsRef = useRef(elements); elementsRef.current = elements;
+  const histRef = useRef({ past:[], future:[], last:0, force:true, down:false });
+  const [histCount, setHistCount] = useState({ u:0, r:0 });
+  const syncHist = () => setHistCount({ u:histRef.current.past.length, r:histRef.current.future.length });
+  const setElements = useCallback((upd) => {
+    const prev = elementsRef.current;
+    const next = typeof upd === "function" ? upd(prev) : upd;
+    if (next === prev) return;
+    const h = histRef.current, now = Date.now();
+    if (h.force || (!h.down && now - h.last > 700)) { h.past.push(prev); if (h.past.length > 150) h.past.shift(); }
+    h.force = false; h.last = now; h.future = [];
+    elementsRef.current = next; setElementsRaw(next); syncHist();
+  }, []);
+  // replace the whole plan without it being an undo step (import, new project)
+  const loadElements = useCallback((list) => {
+    const h = histRef.current; h.past = []; h.future = []; h.force = true;
+    elementsRef.current = list; setElementsRaw(list); syncHist();
+  }, []);
+  useEffect(() => {
+    const down = () => { histRef.current.force = true; histRef.current.down = true; };
+    const up = () => { histRef.current.down = false; histRef.current.last = Date.now(); };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+    return () => { window.removeEventListener("pointerdown", down, true); window.removeEventListener("pointerup", up, true); window.removeEventListener("pointercancel", up, true); };
+  }, []);
   const [selected, setSelectedRaw] = useState(null);   // the one selected element (drives the Props panel)
   const [multiSel, setMultiSel] = useState([]);          // ids of a group selection (2 or more)
   const [marquee, setMarquee] = useState(null);          // rubber-band box while drag-selecting
@@ -1587,8 +99,8 @@ export default function StageDesigner() {
   const [battenStart, setBattenStart] = useState(null);
   const [showGrid, setShowGrid] = useState(true);
   const [showMeasure, setShowMeasure] = useState(true);
-  const [stageW, setStageW] = useState(35.5); // Burgdorff: 35'6" wide
-  const [stageH, setStageH] = useState(26.5); // Burgdorff: 26'6" deep
+  const [stageW, setStageW] = useState(_auto?.stageW ?? 35.5); // Burgdorff: 35'6" wide
+  const [stageH, setStageH] = useState(_auto?.stageH ?? 26.5); // Burgdorff: 26'6" deep
   const [sidebarTab, setSidebarTab] = useState("elements");
   const [hoverId, setHoverId] = useState(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -1597,10 +109,62 @@ export default function StageDesigner() {
   const [numberPieces, setNumberPieces] = useState(true);
   const [showProjectInfo, setShowProjectInfo] = useState(false);
   const [showVenueEditor, setShowVenueEditor] = useState(false);
-  const [projectInfo, setProjectInfo] = useState({ title:"", venue:"Burgdorff Center", designer:"", director:"", revision:"1" });
-  const [venue, setVenue] = useState({ ...DEFAULT_VENUE });
+  const [projectInfo, setProjectInfo] = useState(_auto?.projectInfo ?? { title:"", venue:"Burgdorff Center", designer:"", director:"", revision:"1" });
+  const [venue, setVenue] = useState(_auto?.venue ?? { ...DEFAULT_VENUE });
+  const [snapStep, setSnapStep] = useState(() => { const v = +localStorage.getItem("sd_snap"); return [0, GRID, GRID/2, GRID/12].includes(v) && localStorage.getItem("sd_snap") !== null ? v : GRID; });
+  SNAP = snapStep;
+  const [layerLocked, setLayerLocked] = useState(_auto?.layerLocked ?? {});
+  const [underlay, setUnderlay] = useState(_auto?.underlay ?? null);   // ground-plan image behind the stage
+  const [calib, setCalib] = useState(null);                            // { pts:[{x,y}] } while calibrating the underlay scale
+  const [showBuild, setShowBuild] = useState(false);
+  const [show3D, setShow3D] = useState(false);
+  const [showLighting, setShowLighting] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [sharedMode, setSharedMode] = useState(!!SHARED);   // opened from a share link: edits are not saved over this browser's own plan
+  const [shop, setShop] = useState(loadShop);
+  const [savedAt, setSavedAt] = useState(null);
+  const [saveNote, setSaveNote] = useState("");
   const [labelText, setLabelText] = useState("");
   const [placingLabel, setPlacingLabel] = useState(false);
+
+  const dropMissingSelection = (list) => {
+    const ids = new Set(list.map(e => e.id));
+    if (selected && !ids.has(selected)) setSelected(null);
+    if (multiSel.length) setGroup(multiSel.filter(i => ids.has(i)));
+  };
+  const undo = useCallback(() => {
+    const h = histRef.current; if (!h.past.length) return;
+    const prev = h.past.pop(); h.future.push(elementsRef.current); h.force = true;
+    elementsRef.current = prev; setElementsRaw(prev); syncHist(); dropMissingSelection(prev);
+  }, [selected, multiSel]);
+  const redo = useCallback(() => {
+    const h = histRef.current; if (!h.future.length) return;
+    const nxt = h.future.pop(); h.past.push(elementsRef.current); h.force = true;
+    elementsRef.current = nxt; setElementsRaw(nxt); syncHist(); dropMissingSelection(nxt);
+  }, [selected, multiSel]);
+
+  // ── autosave to this browser ──────────────────────────────────────────────
+  useEffect(() => {
+    if (sharedMode) return;
+    const t = setTimeout(() => {
+      const base = { version:MODEL_VERSION, savedAt:Date.now(), projectInfo, stageW, stageH, venue, elements, layerLocked };
+      try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ ...base, underlay })); setSaveNote(""); setSavedAt(Date.now()); }
+      catch {
+        try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(base)); setSaveNote(underlay ? "Underlay image is too large to autosave" : ""); setSavedAt(Date.now()); }
+        catch { setSaveNote("Autosave failed (browser storage full)"); }
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [elements, projectInfo, stageW, stageH, venue, layerLocked, underlay, sharedMode]);
+  useEffect(() => { try { localStorage.setItem("sd_snap", String(snapStep)); } catch {} }, [snapStep]);
+
+  const newProject = () => {
+    if (!window.confirm("Start a new project? The current plan will be cleared. Export JSON first if you want to keep it.")) return;
+    loadElements([]); setSelected(null); setUnderlay(null); setLayerLocked({});
+    setProjectInfo({ title:"", venue:"Burgdorff Center", designer:"", director:"", revision:"1" });
+    try { localStorage.removeItem(AUTOSAVE_KEY); } catch {}
+  };
 
   const selEl = elements.find(e => e.id === selected);
   const selIds = multiSel.length > 1 ? multiSel : selected ? [selected] : [];   // everything currently selected
@@ -1621,7 +185,7 @@ export default function StageDesigner() {
   // ── place element ─────────────────────────────────────────────────────────
   const placeElement = useCallback((type, category, defObj, cx, cy) => {
     const el = {
-      id: uid(), type, category,
+      id: uid(), type: defObj.base || type, category,
       layer: category === "lighting" ? "lighting" : (defObj.layer || activeLayer),
       x: snap(cx), y: snap(cy),
       rotation: 0, color: defObj.color,
@@ -1632,7 +196,8 @@ export default function StageDesigner() {
       dimmer: "", focusAngle: 45, focused: false,
       gelCode: "Open", notes: "",
       w: defObj.w, h: defObj.h,
-      elevation: 0,
+      elevation: defObj.elevation || 0,
+      ...(category === "lighting" ? { mount: "batten" } : {}),
     };
     setElements(prev => [...prev, el]);
     setSelected(el.id);
@@ -1657,6 +222,25 @@ export default function StageDesigner() {
 
   // ── pointer events ────────────────────────────────────────────────────────
   const onPointerDown = useCallback((e) => {
+    if (calib) {                                   // picking the two reference points for the underlay scale
+      const cp = svgPt(e.clientX, e.clientY);
+      const pts = [...calib.pts, { x:cp.x, y:cp.y }];
+      if (pts.length < 2) { setCalib({ pts }); return; }
+      setCalib(null);
+      const d = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      const ans = window.prompt("Real distance between the two points? (e.g. 24'6\" or 24.5)", "");
+      const ft = parseFtIn(ans);
+      if (!ft || ft <= 0 || d < 1) return;
+      const k = (ft * GRID) / d, o = pts[0];
+      setUnderlay(u => u && ({ ...u, w:u.w*k, h:u.h*k, x:o.x - (o.x - u.x)*k, y:o.y - (o.y - u.y)*k }));
+      return;
+    }
+    // one finger on empty canvas pans (Apple Pencil / mouse still draws a selection box)
+    if (e.pointerType === "touch" && tool === "select") {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      return;
+    }
     if (e.button === 1 || tool === "pan") {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -1671,6 +255,16 @@ export default function StageDesigner() {
     if (tool === "batten") {
       setBattenStart({ x:snap(pt.x), y:snap(pt.y) });
       setDrawingBatten({ x1:snap(pt.x), y1:snap(pt.y), x2:snap(pt.x), y2:snap(pt.y) });
+      return;
+    }
+    if (tool === "pin") {
+      const text = window.prompt("Comment:", "");
+      if (text) {
+        const el = { id: uid(), type:"pin", category:"notes", layer:"notes", x: snap(pt.x), y: snap(pt.y), label: text, author: projectInfo.designer || "", created: Date.now(), resolved: false,
+          n: Math.max(0, ...elementsRef.current.filter(e=>e.type==="pin").map(e=>e.n||0)) + 1 };
+        setElements(prev => [...prev, el]);
+        setSelected(el.id); setSidebarTab("props"); setTool("select");
+      }
       return;
     }
     if (tool === "label") {
@@ -1690,7 +284,7 @@ export default function StageDesigner() {
       // start a rubber-band box; releasing without dragging just clears the selection
       setMarquee({ x1:pt.x, y1:pt.y, x2:pt.x, y2:pt.y, add:e.shiftKey });
     }
-  }, [tool, pan, svgPt]);
+  }, [tool, pan, svgPt, calib]);
 
   const onPointerMove = useCallback((e) => {
     if (isPanning && panStart) {
@@ -1740,7 +334,7 @@ export default function StageDesigner() {
       const l = Math.min(m.x1,m.x2), r = Math.max(m.x1,m.x2), t = Math.min(m.y1,m.y2), b = Math.max(m.y1,m.y2);
       if ((r - l) < 4/zoom && (b - t) < 4/zoom) { if (!m.add) setSelected(null); return; }   // a click, not a drag
       const hits = elements
-        .filter(el => layerVis[el.layer])
+        .filter(el => layerVis[el.layer] && !layerLocked[el.layer])
         .filter(el => { const bb = elBounds(el); return bb.r >= l && bb.l <= r && bb.b >= t && bb.t <= b; })
         .map(el => el.id);
       setGroup([...new Set([...(m.add ? selIds : []), ...hits])]);
@@ -1773,7 +367,7 @@ export default function StageDesigner() {
       }
       setDrawingBatten(null); setBattenStart(null); setTool("select");
     }
-  }, [dragging, marquee, zoom, layerVis, selIds, setGroup, sidebarTab, drawingWall, wallStart, drawingBatten, battenStart, activeLayer, elements]);
+  }, [dragging, marquee, zoom, layerVis, layerLocked, selIds, setGroup, sidebarTab, drawingWall, wallStart, drawingBatten, battenStart, activeLayer, elements]);
 
   // begin dragging the whole group; remembers where each member started
   const startGroupDrag = useCallback((e, ids) => {
@@ -1784,6 +378,7 @@ export default function StageDesigner() {
   }, [elements, svgPt]);
 
   const onElementDown = useCallback((e, el) => {
+    if (layerLocked[el.layer] && (tool === "select" || tool === "delete")) return;   // locked: click falls through to the canvas
     e.stopPropagation();
     if (tool === "delete") {
       setElements(prev => prev.filter(x => x.id !== el.id));
@@ -1806,7 +401,7 @@ export default function StageDesigner() {
         setDragging({ id: el.id, ox: pt.x - el.x, oy: pt.y - el.y });
       }
     }
-  }, [tool, svgPt, sidebarTab, selIds, toggleSel, startGroupDrag]);
+  }, [tool, svgPt, sidebarTab, selIds, toggleSel, startGroupDrag, layerLocked]);
 
   const onWheel = useCallback((e) => {
     e.preventDefault();
@@ -1819,6 +414,59 @@ export default function StageDesigner() {
     el.addEventListener("wheel", onWheel, { passive:false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [onWheel]);
+
+  // two-finger pinch to zoom and drag to pan (touch screens / iPad)
+  const viewRef = useRef({ zoom, pan }); viewRef.current = { zoom, pan };
+  useEffect(() => {
+    const el = svgRef.current; if (!el) return;
+    let g = null;
+    const pts = (ev) => { const r = el.getBoundingClientRect(), a = ev.touches[0], b = ev.touches[1];
+      return { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, mx: (a.clientX + b.clientX) / 2 - r.left, my: (a.clientY + b.clientY) / 2 - r.top }; };
+    const start = (ev) => {
+      if (ev.touches.length !== 2) return;
+      const p = pts(ev), v = viewRef.current;
+      g = { ...p, z0: v.zoom, pan0: v.pan, wx: (p.mx - v.pan.x) / v.zoom, wy: (p.my - v.pan.y) / v.zoom };
+      setDragging(null); setMarquee(null); setIsPanning(false); setPanStart(null);   // drop whatever the first finger began
+      setDrawingWall(null); setWallStart(null); setDrawingBatten(null); setBattenStart(null);
+      ev.preventDefault();
+    };
+    const move = (ev) => {
+      if (!g || ev.touches.length !== 2) return;
+      const p = pts(ev), z = Math.min(4, Math.max(0.15, g.z0 * p.d / g.d));
+      setZoom(z); setPan({ x: p.mx - g.wx * z, y: p.my - g.wy * z });
+      ev.preventDefault();
+    };
+    const end = (ev) => { if (ev.touches.length < 2) g = null; };
+    el.addEventListener("touchstart", start, { passive:false });
+    el.addEventListener("touchmove", move, { passive:false });
+    el.addEventListener("touchend", end); el.addEventListener("touchcancel", end);
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, []);
+
+  // ── align / distribute the selected group ─────────────────────────────────
+  const shiftEl = (el, dx, dy) => el.x1 !== undefined ? { ...el, x1:el.x1+dx, y1:el.y1+dy, x2:el.x2+dx, y2:el.y2+dy } : { ...el, x:(el.x||0)+dx, y:(el.y||0)+dy };
+  const alignSel = (mode) => setElements(prev => {
+    const sel = prev.filter(e => selIds.includes(e.id) && !layerLocked[e.layer]);
+    if (sel.length < 2) return prev;
+    const bb = {}; sel.forEach(e => { bb[e.id] = elBounds(e); });
+    const L = Math.min(...sel.map(e => bb[e.id].l)), R = Math.max(...sel.map(e => bb[e.id].r));
+    const T = Math.min(...sel.map(e => bb[e.id].t)), B = Math.max(...sel.map(e => bb[e.id].b));
+    return prev.map(e => {
+      const b = bb[e.id]; if (!b) return e;
+      const dx = mode==="left" ? L-b.l : mode==="right" ? R-b.r : mode==="hcenter" ? (L+R)/2-(b.l+b.r)/2 : 0;
+      const dy = mode==="top" ? T-b.t : mode==="bottom" ? B-b.b : mode==="vcenter" ? (T+B)/2-(b.t+b.b)/2 : 0;
+      return dx||dy ? shiftEl(e, dx, dy) : e;
+    });
+  });
+  const distributeSel = (axis) => setElements(prev => {
+    const sel = prev.filter(e => selIds.includes(e.id) && !layerLocked[e.layer]);
+    if (sel.length < 3) return prev;
+    const c = (e) => { const b = elBounds(e); return axis==="x" ? (b.l+b.r)/2 : (b.t+b.b)/2; };
+    const order = [...sel].sort((a, b) => c(a) - c(b));
+    const first = c(order[0]), last = c(order[order.length-1]), step = (last - first) / (order.length - 1);
+    const target = {}; order.forEach((e, i) => { target[e.id] = first + step * i - c(e); });
+    return prev.map(e => target[e.id] ? (axis==="x" ? shiftEl(e, target[e.id], 0) : shiftEl(e, 0, target[e.id])) : e);
+  });
 
   // ── update element ────────────────────────────────────────────────────────
   const updateEl = (key, val) => setElements(prev => prev.map(e => e.id === selected ? { ...e, [key]: val } : e));
@@ -1934,8 +582,10 @@ export default function StageDesigner() {
         setElements(prev => prev.filter(x => !selIds.includes(x.id))); setSelected(null);
       }
       const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "z") { (e.shiftKey ? redo : undo)(); e.preventDefault(); return; }
+      if (mod && e.key.toLowerCase() === "y") { redo(); e.preventDefault(); return; }
       if (mod && e.key.toLowerCase() === "a") {            // select everything on visible layers
-        setGroup(elements.filter(x => layerVis[x.layer]).map(x => x.id)); e.preventDefault();
+        setGroup(elements.filter(x => layerVis[x.layer] && !layerLocked[x.layer]).map(x => x.id)); e.preventDefault();
       }
       if (mod && e.key.toLowerCase() === "c" && hasSel) { copySelected(); e.preventDefault(); }
       if (mod && e.key.toLowerCase() === "v" && clipboard) { pasteClipboard(); e.preventDefault(); }
@@ -1953,6 +603,7 @@ export default function StageDesigner() {
         if (e.key === "d") setTool("delete");
         if (e.key === "p") setTool("pan");
         if (e.key === "l") setTool("label");
+        if (e.key === "c") setTool("pin");
       }
       if (hasSel && ["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) {
         const d = e.shiftKey ? GRID : GRID/4;
@@ -1969,11 +620,11 @@ export default function StageDesigner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selIds, elements, layerVis, setGroup, setSelected, clipboard, copySelected, pasteClipboard, duplicateSelected, moveZ]);
+  }, [selIds, elements, layerVis, layerLocked, setGroup, setSelected, clipboard, copySelected, pasteClipboard, duplicateSelected, moveZ, undo, redo]);
 
   // ── JSON export / import ──────────────────────────────────────────────────
   const exportJSON = () => {
-    const data = JSON.stringify({ version:2, projectInfo, stageW, stageH, venue, elements }, null, 2);
+    const data = JSON.stringify({ version:MODEL_VERSION, projectInfo, stageW, stageH, venue, shop, layerLocked, underlay, elements }, null, 2);
     const blob = new Blob([data], { type:"application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = `${projectInfo.title||"stage-layout"}.json`; a.click();
@@ -1984,7 +635,14 @@ export default function StageDesigner() {
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
-        if (data.elements) { setElements(data.elements); _id = Math.max(...data.elements.map(el=>parseInt(el.id.replace("el_",""))||0))+1; }
+        if (data.elements) {
+          const list = migrateElements(data.elements);
+          loadElements(list); setSelected(null);
+          _id = Math.max(1, ...list.map(el=>parseInt(String(el.id).replace("el_",""))||0)) + 1;
+        }
+        if (data.shop) setShop(mergeShop(data.shop));
+        setLayerLocked(data.layerLocked || {});
+        setUnderlay(data.underlay || null);
         if (data.stageW) setStageW(data.stageW);
         if (data.stageH) setStageH(data.stageH);
         if (data.projectInfo) setProjectInfo(data.projectInfo);
@@ -1994,6 +652,14 @@ export default function StageDesigner() {
     reader.readAsText(file);
     e.target.value = "";
   };
+
+  const copyShareLink = async () => {
+    const data = JSON.stringify({ version:MODEL_VERSION, projectInfo, stageW, stageH, venue, shop, layerLocked, elements });
+    const url = location.origin + location.pathname + "#share=" + b64u(zlibSync(strToU8(data), { level:9 }));
+    try { await navigator.clipboard.writeText(url); alert(`Link copied (${Math.round(url.length/1024)} KB).` + (url.length > 8000 ? "\n\nThis link is long. Some chat and email apps cut long links, so for a big plan send the JSON file instead." : "\n\nAnyone with the link sees the plan as of right now. The underlay image is not included.")); }
+    catch { window.prompt("Copy this link:", url); }
+  };
+  const leaveShared = () => { history.replaceState(null, "", location.pathname + location.search); setSharedMode(false); };
 
   // ── SVG export ────────────────────────────────────────────────────────────
   const exportSVG = () => {
@@ -2037,6 +703,13 @@ export default function StageDesigner() {
     const isHov = el.id === hoverId;
     const hoverStyle = { cursor: tool==="delete"?"crosshair":tool==="select"?"move":"default" };
 
+    if (el.type === "pin") {
+      return (
+        <g key={el.id} onPointerDown={e=>onElementDown(e,el)} onPointerEnter={()=>setHoverId(el.id)} onPointerLeave={()=>setHoverId(null)} style={{ cursor:"move" }}>
+          <PinSVG el={el} selected={isSel}/>
+        </g>
+      );
+    }
     if (el.type === "textlabel") {
       return (
         <g key={el.id} onPointerDown={e=>onElementDown(e,el)} onPointerEnter={()=>setHoverId(el.id)} onPointerLeave={()=>setHoverId(null)} style={{ cursor:"move" }}>
@@ -2049,6 +722,7 @@ export default function StageDesigner() {
         <g key={el.id}>
           <g
             onPointerDown={e=>{
+              if (layerLocked.battens && (tool==="select" || tool==="delete")) return;
               e.stopPropagation();
               if (tool==="delete") { setElements(p=>p.filter(x=>x.id!==el.id)); setSelected(null); return; }
               if (tool==="select" && e.shiftKey) { toggleSel(el.id); if (sidebarTab!=="props") setSidebarTab("props"); return; }
@@ -2119,6 +793,13 @@ export default function StageDesigner() {
     <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:COLORS.bg, color:COLORS.text, fontFamily:"'Courier New',monospace", userSelect:"none", overflow:"hidden" }}>
 
       {showProjectInfo && <ProjectInfoModal projectInfo={projectInfo} setProjectInfo={setProjectInfo} onClose={()=>setShowProjectInfo(false)}/>}
+      {showBuild && <ConstructionModal elements={elements} setElements={setElements} shop={shop} setShop={setShop} projectInfo={projectInfo} grid={GRID} selectedId={selected} onClose={()=>setShowBuild(false)}/>}
+      {show3D && <Suspense fallback={<div style={{ position:"fixed", inset:0, zIndex:1000, background:"#0e0e18", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
+        <View3D elements={elements} venue={venue} stageW={stageW} stageH={stageH} projectInfo={projectInfo} onClose={()=>setShow3D(false)}/>
+      </Suspense>}
+      {showNotes && <NotesModal elements={elements} setElements={setElements} onPick={(id)=>{ setSelected(id); setSidebarTab("props"); setShowNotes(false); }} onClose={()=>setShowNotes(false)}/>}
+      {showCompare && <CompareModal elements={elements} onClose={()=>setShowCompare(false)}/>}
+      {showLighting && <LightingModal stageW={stageW} stageH={stageH} elements={elements} setElements={setElements} projectInfo={projectInfo} onClose={()=>setShowLighting(false)}/>}
       {showSchedule && <ScheduleModal projectInfo={projectInfo} elements={elements} stageW={stageW} stageH={stageH} lightingEls={lightingEls} battens={battens} setSelected={setSelected} setSidebarTab={setSidebarTab} onClose={()=>setShowSchedule(false)}/>}
       {showVenueEditor && <VenueEditorModal venue={venue} stageW={stageW} stageH={stageH} setStageW={setStageW} setStageH={setStageH} onClose={()=>setShowVenueEditor(false)} onApply={(d)=>{setVenue(d); setShowVenueEditor(false);}}/>}
 
@@ -2137,9 +818,19 @@ export default function StageDesigner() {
           <Btn key={t.id} active={tool===t.id} onClick={()=>setTool(t.id)} title={t.label}>{t.icon} {t.label.split(" ")[0]}</Btn>
         ))}
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
+        <Btn onClick={undo} title="Undo (Ctrl/Cmd+Z)" disabled={!histCount.u}>↶ Undo</Btn>
+        <Btn onClick={redo} title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!histCount.r}>↷ Redo</Btn>
+        <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
         <Btn onClick={copySelected} title="Copy (Ctrl/Cmd+C)">⎘ Copy</Btn>
         <Btn onClick={pasteClipboard} title="Paste (Ctrl/Cmd+V)">📋 Paste</Btn>
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
+        <label title="Snap step for placing and dragging" style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, color:COLORS.textDim }}>
+          Snap
+          <select value={snapStep} onChange={e=>setSnapStep(+e.target.value)}
+            style={{ background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 4px", fontSize:11, fontFamily:"inherit" }}>
+            <option value={GRID}>1 ft</option><option value={GRID/2}>6 in</option><option value={GRID/12}>1 in</option><option value={0}>Off</option>
+          </select>
+        </label>
         <Btn onClick={()=>setShowGrid(g=>!g)} active={showGrid}>Grid</Btn>
         <Btn onClick={()=>setShowMeasure(m=>!m)} active={showMeasure}>Scale</Btn>
         <div style={{ flex:1 }}/>
@@ -2148,6 +839,9 @@ export default function StageDesigner() {
         <Btn onClick={()=>setShowVenueEditor(true)}>🏛 Venue</Btn>
         <Btn onClick={()=>setShowProjectInfo(true)}>⚙ Project</Btn>
         <Btn onClick={()=>setShowSchedule(true)} active={showSchedule}>📋 Schedule</Btn>
+        <Btn onClick={()=>setShowBuild(true)} title="Cut sheets, cut list and buy list for the set pieces">🔨 Build</Btn>
+        <Btn onClick={()=>setShowLighting(true)} title="Patch, load, power, colour cuts and equipment key">💡 Paperwork</Btn>
+        <Btn onClick={()=>setShow3D(true)} title="3D view with beams, sightlines and glTF export">🧊 3D</Btn>
         <Btn onClick={()=>generateInstrumentSchedulePDF(elements,stageW,stageH,projectInfo)} title="Print instrument/batten schedule as PDF">🖨 Sched PDF</Btn>
         <Btn onClick={()=>generateDesignPDF(svgRef.current,elements,stageW,stageH,venue,projectInfo,{numberPieces})} title="Print the stage/lighting/set design layout as PDF">🖨 Plot PDF</Btn>
         <label title="Print each set piece's schedule number on the plot PDF" style={{ display:"flex", alignItems:"center", gap:3, fontSize:11, color:COLORS.textDim, cursor:"pointer", userSelect:"none" }}>
@@ -2155,10 +849,23 @@ export default function StageDesigner() {
         </label>
         <Btn onClick={exportSVG}>⬇ SVG</Btn>
         <Btn onClick={exportJSON}>⬇ JSON</Btn>
+        <Btn onClick={()=>setShowNotes(true)} title="List of comment pins, with resolve ticks and a CSV export">💬 Notes{elements.filter(e=>e.type==="pin"&&!e.resolved).length ? ` (${elements.filter(e=>e.type==="pin"&&!e.resolved).length})` : ""}</Btn>
+        <Btn onClick={()=>setShowCompare(true)} title="Compare with an earlier saved JSON file">⇄ Compare</Btn>
+        <Btn onClick={copyShareLink} title="Copy a link that opens this plan for someone else">🔗 Share</Btn>
         <Btn onClick={()=>fileInputRef.current?.click()}>⬆ Import</Btn>
+        <Btn onClick={newProject} title="Clear the plan and start again">🗋 New</Btn>
+        <span title={saveNote || "Your plan is saved in this browser automatically"} style={{ fontSize:10, color:saveNote?COLORS.accent:COLORS.textDim, whiteSpace:"nowrap" }}>
+          {saveNote ? "⚠ " + saveNote : savedAt ? `● Saved ${new Date(savedAt).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })}` : ""}
+        </span>
         <input ref={fileInputRef} type="file" accept=".json" onChange={importJSON} style={{ display:"none" }}/>
       </div>
 
+      {sharedMode && (
+        <div style={{ background:"#3a2a10", borderBottom:`1px solid ${COLORS.border}`, color:"#ffcc66", fontSize:11, padding:"5px 12px", display:"flex", gap:10, alignItems:"center" }}>
+          <span>Opened from a share link. Changes you make here are not saved, and your own saved plan is untouched.</span>
+          <Btn onClick={leaveShared} title="Keep working on this plan and save it in this browser (replaces your saved plan here)">Keep a copy in this browser</Btn>
+        </div>
+      )}
       <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
 
         {/* ── left sidebar ── */}
@@ -2219,9 +926,12 @@ export default function StageDesigner() {
                 <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${COLORS.border}` }}>
                   <button onClick={()=>setLayerVis(v=>({...v,[l.id]:!v[l.id]}))}
                     style={{ width:18, height:18, borderRadius:3, background:layerVis[l.id]?l.color:COLORS.border, border:"none", cursor:"pointer", flexShrink:0 }}/>
-                  <span style={{ fontSize:12, color:layerVis[l.id]?COLORS.text:COLORS.textDim }}>{l.label}</span>
+                  <span style={{ fontSize:12, color:layerVis[l.id]?COLORS.text:COLORS.textDim, flex:1 }}>{l.label}</span>
+                  <button title={layerLocked[l.id]?"Locked: can't be selected or moved. Click to unlock":"Lock this layer"} onClick={()=>setLayerLocked(v=>({...v,[l.id]:!v[l.id]}))}
+                    style={{ background:layerLocked[l.id]?COLORS.accent:"transparent", color:layerLocked[l.id]?"#fff":COLORS.textDim, border:`1px solid ${layerLocked[l.id]?COLORS.accent:COLORS.border}`, borderRadius:4, fontSize:11, padding:"1px 6px", cursor:"pointer" }}>{layerLocked[l.id]?"🔒":"🔓"}</button>
                 </div>
               ))}
+              <UnderlayPanel underlay={underlay} setUnderlay={setUnderlay} calib={calib} setCalib={setCalib} stageW={stageW} stageH={stageH}/>
               <div style={{ marginTop:18, fontSize:9, color:COLORS.textDim }}>STAGE SIZE</div>
               <div style={{ display:"flex", gap:6, marginTop:6 }}>
                 {[["Width","stageW",stageW,setStageW],["Depth","stageH",stageH,setStageH]].map(([lbl,key,val,setter])=>(
@@ -2254,9 +964,9 @@ export default function StageDesigner() {
           {sidebarTab === "props" && multiSel.length > 1 && (
             <GroupPanel ids={multiSel} elements={elements} moveZ={moveZ}
               onCopy={copySelected} onDuplicate={duplicateSelected} onClear={()=>setSelected(null)}
-              onDelete={()=>{ setElements(prev=>prev.filter(x=>!multiSel.includes(x.id))); setSelected(null); }}/>
+              onAlign={alignSel} onDistribute={distributeSel} onDelete={()=>{ setElements(prev=>prev.filter(x=>!multiSel.includes(x.id))); setSelected(null); }}/>
           )}
-          {sidebarTab === "props" && multiSel.length <= 1 && <PropsPanel selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard} moveZ={moveZ}/>}
+          {sidebarTab === "props" && multiSel.length <= 1 && <PropsPanel allEls={elements} selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard} moveZ={moveZ}/>}
         </div>
 
         {/* ── canvas ── */}
@@ -2271,11 +981,16 @@ export default function StageDesigner() {
             const def = defs[type]; if (!def) return;
             placeElement(type, activeCat, def, snap(pt.x), snap(pt.y));
           }}>
-          <svg ref={svgRef} style={{ width:"100%", height:"100%", display:"block",
-            cursor: isPanning||tool==="pan"?"grabbing":tool==="delete"?"crosshair":tool==="wall"||tool==="batten"?"crosshair":"default" }}
+          <svg ref={svgRef} style={{ width:"100%", height:"100%", display:"block", touchAction:"none",
+            cursor: isPanning||tool==="pan"?"grabbing":calib||tool==="delete"?"crosshair":tool==="wall"||tool==="batten"?"crosshair":"default" }}
             onPointerDown={onPointerDown} onPointerMove={onPointerMove}
             onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
             <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+              {underlay && underlay.visible !== false && (
+                <image href={underlay.src} x={underlay.x} y={underlay.y} width={underlay.w} height={underlay.h} opacity={underlay.opacity}
+                  preserveAspectRatio="none" transform={underlay.rot ? `rotate(${underlay.rot} ${underlay.x+underlay.w/2} ${underlay.y+underlay.h/2})` : undefined} pointerEvents="none"/>
+              )}
+              {calib && calib.pts.map((c,i)=>(<g key={i} pointerEvents="none"><circle cx={c.x} cy={c.y} r={6/zoom} fill="#ff3b6b" stroke="#fff" strokeWidth={1/zoom}/><text x={c.x+9/zoom} y={c.y-9/zoom} fill="#ff3b6b" fontSize={12/zoom}>{i+1}</text></g>))}
               {/* ── Room / venue shell ── */}
               {venue.showRoom && (() => {
                 const rW = venue.roomW * GRID, rH = venue.roomH * GRID;
@@ -2573,3 +1288,4 @@ export default function StageDesigner() {
     </div>
   );
 }
+
