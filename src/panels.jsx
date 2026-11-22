@@ -1,7 +1,6 @@
 import { beamInfo } from "./lighting.js";
 import { useState, useRef } from "react";
 import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, SET_DEFS, LAYERS, MOUNTS } from "./constants.js";
-import { DEFAULT_HEIGHT_IN } from "./stage.js";
 import { parseFtIn, fmtFtIn } from "./units.js";
 // panels.jsx — properties, group-selection and underlay panels, plus the feet-inches input.
 // Controlled text field that accepts feet-and-inches. value is in feet; onCommit gets feet.
@@ -211,9 +210,9 @@ export function PropsPanel({ allEls, selEl, updateEl, battens, setElements, setS
         {/* Width / Height (ft) — converted from internal px units, same pattern as Position */}
         {!isBatten && !isText && (
           <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>SIZE (ft-in)</div>
+            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>FOOTPRINT ON PLAN (ft-in)</div>
             <div style={{ display:"flex", gap:6 }}>
-              {[["W","w"],["H","h"]].map(([lbl,key])=>(
+              {[["Width","w"],["Depth","h"]].map(([lbl,key])=>(
                 <div key={key}>
                   <div style={{ fontSize:9, color:COLORS.textDim }}>{lbl}</div>
                   <FtInInput width={74} value={(selEl[key]||0)/GRID} onCommit={v=>updateEl(key, Math.max(1, (v||0)*GRID))}/>
@@ -223,21 +222,19 @@ export function PropsPanel({ allEls, selEl, updateEl, battens, setElements, setS
           </div>
         )}
 
-        {/* Height — how tall an upright piece is (flats, walls, drapes, furniture). Platforms and stairs use Elevation below. */}
-        {!isBatten && !isText && !isLight && !["platform","tri_platform","stairs"].includes(selEl.type) && (
+        {/* Height: vertical size of an upright piece, used by 3D and Build */}
+        {!isBatten && !isText && !isLight && !["platform","tri_platform","stairs"].includes(selEl.type) && selEl.category==="set" && (
           <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>HEIGHT (in)</div>
-            <input type="number" min="0" step="1" value={selEl.height ?? ""} placeholder={String(DEFAULT_HEIGHT_IN[selEl.type] ?? 30)}
-              onChange={e=>updateEl("height", e.target.value==="" ? undefined : Math.max(0, +e.target.value))}
-              style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
-            <span style={{ fontSize:9, color:COLORS.textDim, marginLeft:6 }}>used in 3D and Build · size above is the footprint</span>
+            <div style={{ fontSize:9, color:COLORS.textDim }}>HEIGHT (ft-in, vertical)</div>
+            <FtInInput width={74} value={selEl.height>0 ? selEl.height/12 : ""} placeholder={"8'"} onCommit={v=>updateEl("height", v ? Math.round(v*12*8)/8 : undefined)}/>
+            <span style={{ fontSize:9, color:COLORS.textDim, marginLeft:6 }}>blank = default for this item</span>
           </div>
         )}
 
         {/* Elevation — height of the top surface above the stage floor, in inches */}
         {!isBatten && !isText && !isLight && (
           <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>ELEVATION / DECK HEIGHT (in)</div>
+            <div style={{ fontSize:9, color:COLORS.textDim }}>{["platform","tri_platform","stairs"].includes(selEl.type) ? "HEIGHT (in, top of deck)" : "RAISED OFF FLOOR (in)"}</div>
             <input type="number" min="0" step="1" value={selEl.elevation ?? 0}
               onChange={e=>updateEl("elevation", Math.max(0, +e.target.value))}
               style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
@@ -305,15 +302,6 @@ export function PropsPanel({ allEls, selEl, updateEl, battens, setElements, setS
             {LAYERS.map(l=><option key={l.id} value={l.id}>{l.label}</option>)}
           </select>
         </div>
-
-        {/* Piece height (flats, walls, doors) — feeds the Build dialog */}
-        {!isBatten && !isText && !isLight && !["platform","tri_platform","stairs"].includes(selEl.type) && selEl.category==="set" && (
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>PIECE HEIGHT (ft-in)</div>
-            <FtInInput width={74} value={selEl.height>0 ? selEl.height/12 : ""} placeholder={"8'"} onCommit={v=>updateEl("height", v ? Math.round(v*12*8)/8 : undefined)}/>
-            <span style={{ fontSize:9, color:COLORS.textDim, marginLeft:6 }}>blank = 8' default</span>
-          </div>
-        )}
 
         {/* Lighting mount, mount height and aim point (data for the 3D view and focus charts) */}
         {isLight && (
