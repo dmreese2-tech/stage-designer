@@ -98,3 +98,13 @@ export function shiftCSV(shifts) {
   shifts.forEach((sh) => sh.rows.forEach((r) => lines.push([sh.to.cue, sh.to.act, sh.to.scene, sh.to.name, r.name, r.action, r.from, r.to, sh.to.crew, sh.to.notes])));
   return lines.map((l) => l.map(q).join(",")).join("\n");
 }
+
+// Cue-list CSV laid out like a CueControl cue list: number, type, name, note.
+// CueControl's importer has column mapping, so headers only need to be recognisable.
+export function cueControlCSV(shifts, type = "SCENE") {
+  const q = (c) => `"${String(c ?? "").replace(/"/g, '""')}"`;
+  const lines = [["Cue", "Type", "Name", "Note"]];
+  shifts.forEach((sh) => lines.push([sh.to.cue, type, `Scene change: ${sh.to.name || sh.to.scene || ""}`.trim(),
+    [...sh.rows.map((r) => `${r.name} ${r.action}${r.to ? " to " + r.to : ""}`), sh.to.crew ? `Crew: ${sh.to.crew}` : "", sh.to.notes].filter(Boolean).join("; ")]));
+  return lines.map((l) => l.map(q).join(",")).join("\n");
+}

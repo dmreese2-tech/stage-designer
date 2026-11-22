@@ -57,6 +57,12 @@ export const DEFAULT_SHOP = {
   // Flats
   cornerBlock: 6,               // corner block leg size (in)
   keystoneW: 3, keystoneH: 6,   // keystone size (in)
+  // Practicals (working onstage lamps)
+  practicalWatts: 40,           // bulb wattage per practical (W)
+  practicalBulb: "LED A19, warm white, dimmable",
+  practicalCordFt: 12,          // cord length per practical (ft)
+  practicalControl: "Inline dimmer", // how it is controlled: Inline dimmer / Switch / Dimmer-rack circuit
+  practicalCordCost: 0,
   // Fasteners
   screwsPerJoint: 3, screwWaste: 1.1, deckScrewsPerSqFt: 4,
   // Curved flats, columns, soft goods
@@ -92,6 +98,7 @@ export const CHECK_ITEMS = [
   ["casterH", "Wagon caster height", (s) => `${s.casterH}" including plate`, "Match the casters you actually buy."],
   ["ribSpacing", "Curved flat and column rib spacing", (s) => `${s.ribSpacing}" apart`, "New this round, from general practice; test one before building many."],
   ["fabric", "Soft goods fabric width, fullness and hems", (s) => `${s.fabricW}" wide, ${s.fullnessGather}× fullness, ${s.hemTop}" / ${s.hemBottom}" hems`, "Match your usual fabric supplier and your venue's drape standard."],
+  ["practicals", "Practical lamps: bulb, cord and control", (s) => `${s.practicalBulb}, ${s.practicalWatts} W, ${s.practicalCordFt} ft cord, ${s.practicalControl}`, "Match what your venue allows on stage: LED bulbs, cord rating and who runs the control."],
   ["doorSize", "Door opening size", (s) => `${s.doorW}" × ${s.doorH}"`, "Match the doors you hang."],
 ];
 export const unconfirmed = (shop) => CHECK_ITEMS.filter(([k]) => !shop.confirmed?.[k]).length;
@@ -109,6 +116,7 @@ export const TEMPLATE_LABELS = {
   column: "Round column (rings + skin)",
   arch_flat: "Arch flat",
   softgoods: "Soft goods (yardage)",
+  practical: "Practical lamp (parts list)",
 };
 
 // ── build status (shop-floor progress per piece) ────────────────────────────
@@ -117,11 +125,12 @@ export const stageProgress = (el) => {
   const st = el?.construction?.stages || {};
   return BUILD_STAGES.filter(([k]) => st[k]).length;
 };
-const PREFIX = { broadway_flat: "BF", hollywood_flat: "HF", door_flat: "DF", platform: "PL", stairs: "ST", wall_run: "WL", wagon: "WG", platform_tri: "TP", curved_flat: "CF", column: "CL", arch_flat: "AF", softgoods: "SG" };
+const PREFIX = { broadway_flat: "BF", hollywood_flat: "HF", door_flat: "DF", platform: "PL", stairs: "ST", wall_run: "WL", wagon: "WG", platform_tri: "TP", curved_flat: "CF", column: "CL", arch_flat: "AF", softgoods: "SG", practical: "PR" };
 
 // Which template choices make sense per element type
 export const SOFT_TYPES = ["traveler", "leg_drape", "backdrop", "scrim"];
 export function templateOptions(el) {
+  if (/^practical_/.test(el.type || "")) return ["practical"];
   if (el.type === "curved_flat") return ["curved_flat"];
   if (el.type === "column") return ["column"];
   if (el.type === "arch_flat") return ["arch_flat"];
@@ -465,6 +474,24 @@ function genSoftGoods(g, W, H, type, shop, fullnessOverride) {
   stp(g, "Attach the tie lines and any weight chain, then steam out the creases and hang for a day before use.", [], false);
 }
 
+function genPractical(g, el, shop) {
+  const c = el.construction || {}, watts = c.watts > 0 ? c.watts : shop.practicalWatts;
+  const control = c.control || shop.practicalControl, cord = c.cordFt > 0 ? c.cordFt : shop.practicalCordFt;
+  const kind = el.type === "practical_sconce" ? "wall sconce" : el.type === "practical_floor" ? "floor lamp" : "table lamp";
+  g.misc.push({ name: `Lamp body (${kind})`, qty: 1, unit: "ea", note: "dress to the set" });
+  g.misc.push({ name: `Bulb: ${shop.practicalBulb}`, qty: 1, unit: "ea", note: `${watts} W` });
+  g.misc.push({ name: "Lamp cord", qty: cord, unit: "ft", note: "run along the floor or wall and tape down" });
+  g.misc.push({ name: "Plug", qty: 1, unit: "ea", note: "" });
+  if (control !== "Dimmer-rack circuit") g.misc.push({ name: control === "Switch" ? "Inline switch" : "Inline dimmer", qty: 1, unit: "ea", note: "within reach of the operator" });
+  g.draw = { kind: "practical", W: el.w || 12, H: el.h || 12 };
+  g.notes.push(`${kind}, ${watts} W bulb${c.channel ? `, channel ${c.channel}` : ""}, controlled by: ${control}.`);
+  if (c.channel) g.notes.push(`Patch to channel ${c.channel} and write it into the cue sheet so the board or operator can cue it.`);
+  stp(g, "Check the lamp and wiring are sound and rated for the bulb. Replace any damaged cord.", [], false);
+  stp(g, `Fit the bulb (${watts} W max) and the ${control.toLowerCase()}. Test it on the bench.`, [], false);
+  stp(g, "Secure the lamp so it cannot be knocked over, and tape the cord down along the run.", [], false);
+  stp(g, "Label the cord end with the cue or channel and the piece ID.", [], false);
+}
+
 // ── element → piece ─────────────────────────────────────────────────────────
 function pieceHeight(el, fallback) {
   const h = el.construction?.heightIn;
@@ -518,6 +545,9 @@ function makePiece(el, tpl, shop, grid) {
     const W = Math.max(a, b), H = pieceHeight(el, 144);
     genSoftGoods(g, W, H, el.type, shop, el.construction?.fullness);
     dims = `${ftIn(W)} W × ${ftIn(H)} H`;
+  } else if (tpl === "practical") {
+    genPractical(g, el, shop);
+    dims = `${el.construction?.watts > 0 ? el.construction.watts : shop.practicalWatts} W${el.construction?.channel ? `, ch ${el.construction.channel}` : ""}`;
   } else if (tpl === "wall_run") {
     const len = r8((Math.hypot((el.x2 || 0) - (el.x1 || 0), (el.y2 || 0) - (el.y1 || 0)) / grid) * 12);
     const H = pieceHeight(el, 96);
