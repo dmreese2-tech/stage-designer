@@ -263,6 +263,7 @@ function ShopTab({ shop, setShop }) {
       <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>Every shop builds a little differently. These defaults drive all templates; change them to match yours. Saved with the project JSON and in this browser.</div>
       <div style={{ border: `1px solid ${C.border}`, borderRadius: 6, padding: 10, marginBottom: 16, background: C.bg }}>
         <div style={{ fontSize: 10, color: C.accent, letterSpacing: 1, marginBottom: 4 }}>DEFAULTS TO CHECK ({unconfirmed(shop)} of {CHECK_ITEMS.length} not yet confirmed)</div>
+        {unconfirmed(shop) > 0 && <button type="button" onClick={() => set("confirmed", Object.fromEntries(CHECK_ITEMS.map(([k]) => [k, true])))} style={{ ...field, width: "auto", cursor: "pointer", margin: "4px 0 8px", color: C.accent }}>Confirm all defaults as they are</button>}
         <div style={{ fontSize: 10, color: C.dim, marginBottom: 8 }}>These starting values come from public references and general practice, not from your shop. Tick each one after you have compared it with a build you trust, and change the setting below if it differs.</div>
         {CHECK_ITEMS.map(([k, label, val, note]) => (
           <label key={k} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 11, padding: "3px 0", cursor: "pointer" }}>

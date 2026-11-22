@@ -91,3 +91,5 @@ Every rule that was fixed in the templates is now a Shop Standards setting, with
 - **MVR export** (3D view > MVR): GeneralSceneDescription.xml with fixtures (position, aim, channel as FixtureID, universe/address, gel colour) grouped by batten, plus the set as set.glb. No GDTF models: choose real fixture types in Vision/Capture/grandMA3.
 - **Part outline DXF** (Build > Part outlines): true shapes of curved ribs, column rings, arch spandrels and triangle decks.
 - Engine tests extended (ALL PASS 3).
+
+- Shop Standards: "Confirm all defaults as they are" button.
