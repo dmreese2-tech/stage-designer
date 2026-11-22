@@ -1054,7 +1054,7 @@ export default function StageDesigner() {
       <div style={{ display:"flex", alignItems:"center", gap:vp==="phone"?8:12, padding:vp==="phone"?"0 8px":"0 12px", minHeight:vp==="desktop"?52:56, background:COLORS.raised, borderBottom:`1px solid ${COLORS.border}`, flexShrink:0 }}>
         {vp === "desktop" && (
           <a href="https://apps.upstage.systems" title="Back to Upstage Systems apps" style={{ ...ghost({ height:36, padding:"0 10px", border:`1px solid ${COLORS.border}`, color:COLORS.textDim, textDecoration:"none", fontSize:12 }) }}>Apps</a>)}
-        <img src={vp==="desktop" ? logoHorizontal : logoMark} alt="Upstage Systems" style={{ width:vp==="desktop"?120:44, height:"auto", display:"block", flex:"none" }}/>
+        <a href="https://apps.upstage.systems" title="Back to Upstage Systems apps" style={{ display:"flex", flex:"none", minHeight:44, alignItems:"center" }}><img src={vp==="desktop" ? logoHorizontal : logoMark} alt="Upstage Systems" style={{ width:vp==="desktop"?120:44, height:"auto", display:"block", flex:"none" }}/></a>
         <div style={{ display:"flex", flexDirection:"column", lineHeight:1.2, minWidth:0, flex:vp==="desktop"?"none":1 }}>
           <span style={{ fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.04em", fontWeight:600, fontSize:14, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{projectInfo.title || "Stage Designer"}</span>
           <span title={saveNote || "Your plan is saved in this browser automatically"} style={{ fontSize:12, color:saveNote?COLORS.accent:COLORS.textDim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{projectInfo.title ? "Stage Designer" : ""}{projectInfo.title && savedText ? " · " : ""}{savedText}</span>

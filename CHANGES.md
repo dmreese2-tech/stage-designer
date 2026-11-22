@@ -93,3 +93,4 @@ Every rule that was fixed in the templates is now a Shop Standards setting, with
 - Engine tests extended (ALL PASS 3).
 
 - Shop Standards: "Confirm all defaults as they are" button.
+- The logo links back to apps.upstage.systems on phone and tablet (desktop keeps the Apps button).
