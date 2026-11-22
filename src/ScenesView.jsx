@@ -2,7 +2,7 @@
 import { useState, useMemo } from "react";
 import { COLORS, FONT_UI, FONT_DISPLAY } from "./constants.js";
 import { WsFrame, ghost, primary, ctl } from "./layout.jsx";
-import { computeShifts, shiftCSV, sceneTitle, canMove, isMoving } from "./scenes.js";
+import { computeShifts, shiftCSV, cueControlCSV, sceneTitle, canMove, isMoving } from "./scenes.js";
 
 const lab = { fontSize: 11, color: COLORS.textDim, marginBottom: 4 };
 const field = { width: "100%", boxSizing: "border-box", background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: "6px 8px", fontSize: 13, fontFamily: FONT_UI };
@@ -49,9 +49,9 @@ export default function ScenesView({ scenes, activeId, elements, setElements, st
   const shifts = useMemo(() => computeShifts(scenes, elements, stageW, stageH, grid), [scenes, elements, stageW, stageH, grid]);
   const movers = elements.filter(isMoving);
   const pieces = elements.filter(canMove).sort((a, b) => (a.label || a.type).localeCompare(b.label || b.type));
-  const download = () => {
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([shiftCSV(shifts)], { type: "text/csv" }));
-    a.download = `${projectInfo?.title || "show"}-shifts.csv`; a.click();
+  const download = (cue) => {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([cue ? cueControlCSV(shifts) : shiftCSV(shifts)], { type: "text/csv" }));
+    a.download = `${projectInfo?.title || "show"}-${cue ? "cuecontrol" : "shifts"}.csv`; a.click();
   };
   const esc = (t) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const print = () => {
@@ -67,7 +67,7 @@ export default function ScenesView({ scenes, activeId, elements, setElements, st
   const tabs = [["scenes", `Scenes${scenes.length ? ` (${scenes.length})` : ""}`], ["shifts", "Shift list"], ["pieces", `Moving pieces (${movers.length})`]];
   return (
     <WsFrame title="Scenes and shifts" tabs={tabs} tab={tab} setTab={setTab}
-      actions={tab === "shifts" && shifts.length ? [{ label: "CSV", onClick: download }] : []}
+      actions={tab === "shifts" && shifts.length ? [{ label: "CueControl CSV", onClick: () => download(true) }, { label: "CSV", onClick: () => download(false) }] : []}
       main={tab === "shifts" && shifts.length ? { label: "Print", onClick: print } : tab === "scenes" && scenes.length ? { label: "Add scene", onClick: onAdd, title: "New scene after the current one, starting from where everything is now" } : null}>
       <div style={{ maxWidth: 820, margin: "0 auto" }}>
         {tab === "scenes" && (!scenes.length ? (

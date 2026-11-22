@@ -84,6 +84,9 @@ export const SET_DEFS = {
   column:    { label:"Column (round)", color:"#a09080", w:40, h:40, shape:"circle" },
   arch_flat: { label:"Arch Flat",     color:"#7a6245", w:4,   h:120 },
   stairs:    { label:"Stairs",        color:"#7a6a4a", w:40,  h:40  },
+  practical_table:    { label:"Practical: table lamp",  color:"#d9b24a", w:12, h:12, shape:"circle" },
+  practical_floor:    { label:"Practical: floor lamp",  color:"#d9b24a", w:14, h:14, shape:"circle" },
+  practical_sconce:   { label:"Practical: wall sconce", color:"#d9b24a", w:10, h:6 },
   podium:    { label:"Podium",        color:"#6a5a4a", w:30,  h:30  },
 };
 

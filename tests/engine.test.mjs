@@ -202,4 +202,10 @@ console.log("ALL PASS 3");
   assert.ok(isMoving(els[0]) && !isMoving(els[1]));
   console.log("scenes ok", sh[0].rows.map((r) => r.name + ": " + r.from + " -> " + r.to).join(" | "));
 }
+{
+  const pr = buildAll([{id:"p1",category:"set",type:"practical_table",x:0,y:0,w:12,h:12,construction:{watts:25,channel:"12"}}], shop, G).pieces[0];
+  assert.equal(pr.template,"practical"); assert.ok(pr.id.startsWith("PR-"));
+  assert.ok(pr.misc.some(m=>/Bulb/.test(m.name)&&m.note==="25 W")); assert.ok(pr.misc.some(m=>m.name==="Inline dimmer"));
+  assert.ok(pr.notes.some(n=>/channel 12/.test(n)));
+}
 console.log("ALL PASS 4");

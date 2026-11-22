@@ -46,7 +46,18 @@ function PieceDetail({ pc, onPatch }) {
             </select>
           </div>
         )}
-        <NumField label={heightLabel} width={110} value={c.heightIn ?? defH} onChange={(v) => onPatch({ heightIn: v || undefined })} />
+        {pc.template !== "practical" && (<NumField label={heightLabel} width={110} value={c.heightIn ?? defH} onChange={(v) => onPatch({ heightIn: v || undefined })} />)}
+        {pc.template === "practical" && (<>
+          <NumField label="Bulb (W)" width={90} value={c.watts ?? ""} onChange={(v) => onPatch({ watts: v || undefined })} />
+          <NumField label="Cord (ft)" width={90} value={c.cordFt ?? ""} onChange={(v) => onPatch({ cordFt: v || undefined })} />
+          <div style={{ width: 90 }}><div style={lab}>Channel</div><input value={c.channel ?? ""} onChange={(e) => onPatch({ channel: e.target.value || undefined })} style={field} /></div>
+          <div style={{ width: 160 }}>
+            <div style={lab}>Control</div>
+            <select value={c.control || ""} onChange={(e) => onPatch({ control: e.target.value || undefined })} style={field}>
+              <option value="">Shop default</option><option>Inline dimmer</option><option>Switch</option><option>Dimmer-rack circuit</option>
+            </select>
+          </div>
+        </>)}
         {pc.template === "softgoods" && <NumField label="Fullness (×)" width={100} step={0.1} value={c.fullness ?? ""} onChange={(v) => onPatch({ fullness: v || undefined })} />}
         {pc.template === "arch_flat" && <NumField label="Arch rise (in)" width={110} value={c.archRise ?? ""} onChange={(v) => onPatch({ archRise: v || undefined })} />}
         {(pc.template === "door_flat" || pc.template === "arch_flat") && (<>
@@ -300,6 +311,13 @@ function ShopTab({ shop, setShop }) {
         {mats.map((m) => (
           <div key={m}><div style={lab}>{m}</div><input type="number" step="0.01" value={shop.prices?.[m] ?? ""} onChange={(e) => set("prices", { ...shop.prices, [m]: e.target.value === "" ? undefined : +e.target.value })} style={field} /></div>
         ))}
+      </div>
+      {h("PRACTICAL LAMPS")}
+      <div style={grid}>
+        {num("practicalWatts", "Bulb wattage (W)")}
+        {num("practicalCordFt", "Cord length (ft)")}
+        {txt("practicalBulb", "Bulb type")}
+        {sel("practicalControl", "Control", ["Inline dimmer", "Switch", "Dimmer-rack circuit"])}
       </div>
       {h("PLATFORMS, LEGS AND BRACING")}
       <div style={grid}>

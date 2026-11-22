@@ -2,6 +2,12 @@
 
 Baseline: the `main` branch of dmreese2-tech/stage-designer as of the 2026-10-31 upload (App.jsx, 2,575 lines).
 
+
+## Practicals and CueControl export
+- New set items: table lamp, floor lamp and wall sconce practicals.
+- Build: a "Practical lamp" template gives a parts list (lamp, bulb, cord, plug, inline dimmer or switch) with bulb watts, cord length, channel and control per piece. Shop Standards has a Practical lamps section and a new item to confirm.
+- Scenes: "CueControl CSV" export (Cue, Type, Name, Note) next to the full shift CSV. CueControl's importer maps columns, so headers only need to be recognisable.
+
 ## Scenes and the shift list
 - **Scenes:** a plan can hold one layout per scene, with an Act and Scene number, a name, a cue number, shift crew and notes. A scene strip under the top bar shows the current scene with previous and next buttons; tap it to open the Scenes page.
 - **Stationary or Moving:** every piece is stationary by default and keeps one position in every scene. Tick "Moves between scenes" in a piece's Properties (or in the Moving pieces tab) and it keeps its own position, rotation, height and, for battens, trim in each scene. Move a piece to the wings to strike it; move it back to bring it on.
