@@ -1,6 +1,6 @@
 // NotesModal.jsx — list of comment pins (director / designer notes) with resolve ticks and CSV export.
 import { useState } from "react";
-import { COLORS } from "./constants.js";
+import { COLORS, FONT_UI } from "./constants.js";
 import { Btn } from "./ui.jsx";
 
 export default function NotesModal({ elements, setElements, onPick, onClose }) {
@@ -15,7 +15,7 @@ export default function NotesModal({ elements, setElements, onPick, onClose }) {
   };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 560, maxWidth: "94vw", maxHeight: "84vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: "'Courier New',monospace" }}>
+      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 560, maxWidth: "94vw", maxHeight: "84vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
           <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>💬 NOTES ON THE PLOT</span>
           <div style={{ flex: 1 }} />

@@ -1,6 +1,6 @@
 // LightingModal.jsx — lighting paperwork: patch, load vs batten capacity, power, colour cut list, equipment key, CSV export.
 import { useState, useMemo } from "react";
-import { COLORS, FIXTURE_DEFS, GRID } from "./constants.js";
+import { COLORS, FIXTURE_DEFS, GRID, FONT_UI } from "./constants.js";
 import { DEFAULT_HEIGHT_IN } from "./stage.js";
 import { Btn } from "./ui.jsx";
 import { gelHex, trimFt, isFixture, specOf, loadSummary, colourCuts, equipmentKey, autoNumberChannels, autoAddress, patchConflicts, patchCSV, beamInfo, mountHeightFt } from "./lighting.js";
@@ -27,7 +27,7 @@ export default function LightingModal({ stageW = 36, stageH = 27, elements, setE
   const inp = { width: 58, background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 3, padding: "2px 4px", fontSize: 11, fontFamily: "inherit" };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 900, maxWidth: "96vw", height: "86vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: "'Courier New',monospace" }}>
+      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 900, maxWidth: "96vw", height: "86vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap" }}>
           <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>💡 LIGHTING PAPERWORK</span>
           {tabs.map(([id, l]) => <Btn key={id} active={tab === id} onClick={() => setTab(id)}>{l}</Btn>)}
@@ -115,7 +115,7 @@ function SectionView({ elements, stageW, stageH }) {
   const hOf = (e) => ((e.height > 0 ? e.height : DEFAULT_HEIGHT_IN[e.type] ?? 30) + 0) / 12 + (e.elevation || 0) / 12 * (["platform", "tri_platform", "stairs"].includes(e.type) ? 0 : 1);
   const topOf = (e) => (["platform", "tri_platform", "stairs"].includes(e.type) ? (e.elevation || 0) / 12 : hOf(e));
   const botOf = (e) => (["platform", "tri_platform", "stairs"].includes(e.type) ? 0 : (e.elevation || 0) / 12);
-  const mono = { fontFamily: "'Courier New',monospace", fontSize: 9, fill: COLORS.textDim };
+  const mono = { fontFamily: FONT_UI, fontSize: 9, fill: COLORS.textDim };
   return (<>
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 4 }}>
       {Array.from({ length: Math.floor(maxH / 5) + 1 }, (_, i) => i * 5).map((h) => <g key={h}><line x1={padL} x2={W - 10} y1={Y(h)} y2={Y(h)} stroke={COLORS.border} strokeDasharray="2 4" /><text x={4} y={Y(h) + 3} {...mono}>{h}'</text></g>)}

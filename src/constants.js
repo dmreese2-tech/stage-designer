@@ -1,11 +1,14 @@
-// constants.js — shared constants and definitions for Stage Designer.
+// constants.js — shared constants and definitions for Stage Designer (Upstage Systems).
+// Brand palette matches the apps.upstage.systems hub: near-black ground, slate panels, blue accent.
+export const BRAND = { name: "Upstage Systems", product: "Stage Designer", domain: "apps.upstage.systems" };
+export const FONT_UI = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 export const GRID = 20;
 
 export const COLORS = {
-  bg: "#1a1a2e", panel: "#16213e", border: "#0f3460",
-  accent: "#e94560", accentDim: "#a03040",
+  bg: "#0f1115", panel: "#1a1d24", border: "#2a2e37",
+  accent: "#4a90d9", accentDim: "#2f6aa5",
   stage: "#2a2a1a", stageEdge: "#5a5a3a",
-  text: "#e8e0d0", textDim: "#8a8070",
+  text: "#e8e8e8", textDim: "#9aa0a6",
   grid: "#5a6a8a", selected: "#ffd700", hover: "#88aaff",
   batten: "#4a6a8a",
 };

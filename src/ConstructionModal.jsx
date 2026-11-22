@@ -1,11 +1,12 @@
 // ConstructionModal.jsx — construction output UI for Stage Designer.
 // All components are module-scope (no components defined inside render) to avoid input-focus remounts.
+import { COLORS, FONT_UI } from "./constants.js";
 import { useMemo, useState } from "react";
 import { buildAll, planAll, cutListCSV, ftIn, templateOptions, TEMPLATE_LABELS, LUMBER, DEFAULT_SHOP, CHECK_ITEMS, unconfirmed, saveShop, BUILD_STAGES, stageProgress } from "./construction.js";
 import { svgPiece, svgSheetLayout, boardBarHTML, printHTML, svgIso, stepFigures } from "./constructionDraw.js";
 import { sheetsDXF, partsDXF } from "./constructionDXF.js";
 
-const C = { bg: "#1a1a2e", panel: "#16213e", border: "#0f3460", accent: "#e94560", text: "#e8e0d0", dim: "#8a8070", warn: "#ffcc66" };
+const C = { bg: COLORS.bg, panel: COLORS.panel, border: COLORS.border, accent: COLORS.accent, text: COLORS.text, dim: COLORS.textDim, warn: "#ffcc66" };
 const field = { background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 4, padding: "4px 6px", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", width: "100%" };
 const lab = { fontSize: 9, color: C.dim, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 };
 const btn = (active) => ({ background: active ? C.accent : "transparent", color: active ? "#fff" : C.dim, border: `1px solid ${active ? C.accent : C.border}`, borderRadius: 5, padding: "5px 11px", cursor: "pointer", fontSize: 12, fontFamily: "inherit" });
@@ -353,7 +354,7 @@ export default function ConstructionModal({ elements, setElements, shop, setShop
   const tabs = [["pieces", `Pieces (${result.pieces.length})`], ["cuts", "Cut List"], ["buy", "Buy List"], ["status", "Build Status"], ["shop", unconfirmed(shop) ? `Shop Standards (${unconfirmed(shop)} to check)` : "Shop Standards"]];
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, width: 1100, maxWidth: "97vw", height: "90vh", display: "flex", flexDirection: "column", color: C.text, fontFamily: "'Courier New',monospace" }}>
+      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, width: 1100, maxWidth: "97vw", height: "90vh", display: "flex", flexDirection: "column", color: C.text, fontFamily: FONT_UI }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
           <span style={{ flex: 1, fontSize: 13, fontWeight: "bold", color: C.accent, letterSpacing: 1 }}>🔨 CONSTRUCTION — {projectInfo?.title || "Untitled"}</span>
           <button style={btn(false)} onClick={() => download(`${projectInfo?.title || "cut-list"}-cutlist.csv`, cutListCSV(result, plan))}>⬇ CSV</button>

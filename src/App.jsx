@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import ConstructionModal from "./ConstructionModal.jsx";
 import { loadShop, mergeShop } from "./construction.js";
-import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE } from "./constants.js";
+import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE, FONT_UI } from "./constants.js";
 import { parseFtIn } from "./units.js";
 import { FixtureSVG, SetPieceSVG, BattenSVG, TextLabelSVG, PinSVG } from "./renderers.jsx";
 import { generateInstrumentSchedulePDF, generateDesignPDF } from "./pdf.js";
@@ -790,11 +790,11 @@ export default function StageDesigner() {
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:COLORS.bg, color:COLORS.text, fontFamily:"'Courier New',monospace", userSelect:"none", overflow:"hidden" }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:COLORS.bg, color:COLORS.text, fontFamily:FONT_UI, userSelect:"none", overflow:"hidden" }}>
 
       {showProjectInfo && <ProjectInfoModal projectInfo={projectInfo} setProjectInfo={setProjectInfo} onClose={()=>setShowProjectInfo(false)}/>}
       {showBuild && <ConstructionModal elements={elements} setElements={setElements} shop={shop} setShop={setShop} projectInfo={projectInfo} grid={GRID} selectedId={selected} onClose={()=>setShowBuild(false)}/>}
-      {show3D && <Suspense fallback={<div style={{ position:"fixed", inset:0, zIndex:1000, background:"#0e0e18", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
+      {show3D && <Suspense fallback={<div style={{ position:"fixed", inset:0, zIndex:1000, background:"#0a0c0f", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
         <View3D elements={elements} venue={venue} stageW={stageW} stageH={stageH} projectInfo={projectInfo} onClose={()=>setShow3D(false)}/>
       </Suspense>}
       {showNotes && <NotesModal elements={elements} setElements={setElements} onPick={(id)=>{ setSelected(id); setSidebarTab("props"); setShowNotes(false); }} onClose={()=>setShowNotes(false)}/>}
@@ -805,13 +805,13 @@ export default function StageDesigner() {
 
       {/* ── top bar ── */}
       <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", background:COLORS.panel, borderBottom:`1px solid ${COLORS.border}`, flexShrink:0, flexWrap:"wrap" }}>
-        <a href="https://apps.upstage.systems" title="Back to Apps.Upstage.Systems"
+        <a href="https://apps.upstage.systems" title="Back to Upstage Systems apps"
           style={{ display:"flex", alignItems:"center", gap:4, color:COLORS.textDim, textDecoration:"none", fontSize:11, padding:"4px 8px", border:`1px solid ${COLORS.border}`, borderRadius:5, marginRight:2 }}
           onMouseEnter={e=>{ e.currentTarget.style.color=COLORS.accent; e.currentTarget.style.borderColor=COLORS.accent; }}
           onMouseLeave={e=>{ e.currentTarget.style.color=COLORS.textDim; e.currentTarget.style.borderColor=COLORS.border; }}>
           ← Apps
         </a>
-        <span style={{ color:COLORS.accent, fontWeight:"bold", fontSize:14, letterSpacing:1, marginRight:4 }}>🎭 STAGE DESIGNER</span>
+        <span style={{ display:"flex", flexDirection:"column", lineHeight:1.1, marginRight:4 }}><span style={{ color:COLORS.textDim, fontSize:8, letterSpacing:2, fontWeight:600 }}>UPSTAGE SYSTEMS</span><span style={{ color:COLORS.text, fontWeight:600, fontSize:15, letterSpacing:-0.2 }}>Stage Designer</span></span>
         {projectInfo.title && <span style={{ fontSize:11, color:COLORS.textDim }}>— {projectInfo.title}</span>}
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
         {TOOLS.map(t=>(

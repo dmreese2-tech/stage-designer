@@ -7,7 +7,7 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { zipSync, strToU8 } from "fflate";
 import { buildMVRxml } from "./mvr.js";
 import { USDZExporter } from "three/examples/jsm/exporters/USDZExporter.js";
-import { GRID, COLORS, FIXTURE_DEFS } from "./constants.js";
+import { GRID, COLORS, FIXTURE_DEFS, FONT_UI } from "./constants.js";
 import { stageOutline, DEFAULT_HEIGHT_IN } from "./stage.js";
 import { isFixture, mountHeightFt, specOf, gelHex, trimFt, AIM_HEIGHT_FT, DEFAULT_HANG_FT } from "./lighting.js";
 
@@ -63,7 +63,7 @@ function buildWall(el) {
 
 function buildScene(opts) {
   const { elements, venue, stageW, stageH, deckFt, showWalls, showBeams, allBeams, noFixtures } = opts;
-  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0e0e18);
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0c0f);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x303040, 0.9));
   const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(20, 40, 30); scene.add(sun);
   const SW = stageW, SH = stageH;
@@ -269,7 +269,7 @@ export default function View3D({ elements, venue, stageW, stageH, projectInfo, o
   const lab = { fontSize: 9, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 };
   const field = { background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: "3px 5px", fontSize: 11, fontFamily: "inherit" };
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#0e0e18", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: "'Courier New',monospace" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#0a0c0f", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: COLORS.panel, borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap" }}>
         <span style={{ color: COLORS.accent, fontWeight: "bold", fontSize: 13, letterSpacing: 1 }}>🧊 3D VIEW — {projectInfo?.title || "Untitled"}</span>
         <div style={{ width: 1, height: 18, background: COLORS.border }} />
