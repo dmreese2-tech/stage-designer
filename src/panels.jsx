@@ -174,6 +174,9 @@ export function PropsPanel({ allEls, selEl, updateEl, battens, setElements, setS
     return (
       <div style={{ flex:1, overflowY:"auto", padding:10 }}>
         <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8, letterSpacing:1 }}>ELEMENT PROPERTIES</div>
+        {selEl.category !== "lighting" && !isText && (
+          <label title="Moving pieces can sit somewhere different in each scene. Stationary pieces stay put in every scene." style={{ display:"flex", gap:8, alignItems:"center", fontSize:12, margin:"0 0 10px", padding:"6px 8px", border:`1px solid ${selEl.motion==="moving"?COLORS.accent:COLORS.border}`, borderRadius:4, cursor:"pointer" }}>
+            <input type="checkbox" checked={selEl.motion==="moving"} onChange={e=>updateEl("motion", e.target.checked ? "moving" : undefined)}/> Moves between scenes</label>)}
 
         {/* Label / name */}
         {[

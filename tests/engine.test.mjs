@@ -182,3 +182,24 @@ console.log("ALL PASS");
   console.log("part DXF ok", nPoly, "polylines; rib", sh.w.toFixed(1), "x", sh.h.toFixed(1));
 }
 console.log("ALL PASS 3");
+
+// scenes and shift list
+{
+  const { syncScene, applyScene, computeShifts, shiftCSV, isMoving } = await import("../src/scenes.js");
+  const els = [{ id: "w", type: "platform", category: "set", label: "Wagon A", motion: "moving", x: 100, y: 200, rotation: 0 }, { id: "p", type: "flat", category: "set", label: "Flat", x: 50, y: 50 }, { id: "b", type: "batten", category: "batten", label: "1E", motion: "moving", trim: 18 }];
+  let scenes = [{ id: "s1", act: "1", scene: "1", name: "Kitchen", pose: {} }, { id: "s2", act: "1", scene: "2", name: "Garden", cue: "Q14", crew: "A, B", pose: {} }];
+  scenes = syncScene(scenes, "s1", els);
+  assert.deepEqual(Object.keys(scenes[0].pose).sort(), ["b", "w"]);
+  assert.equal(syncScene(scenes, "s1", els), scenes, "no change keeps the same array");
+  assert.deepEqual(Object.keys(scenes[1].pose).sort(), ["b", "w"], "flagging a piece backfills other scenes");
+  const moved = els.map((e) => (e.id === "w" ? { ...e, x: 400, rotation: 90 } : e.id === "b" ? { ...e, trim: 30 } : e));
+  scenes = syncScene(scenes, "s2", moved);
+  const back = applyScene(moved, scenes[0]);
+  assert.equal(back.find((e) => e.id === "w").x, 100); assert.equal(back.find((e) => e.id === "p").x, 50);
+  const sh = computeShifts(scenes, els, 36, 27, 20);
+  assert.equal(sh.length, 1); assert.deepEqual(sh[0].rows.map((r) => r.action).sort(), ["Fly", "Shift"]);
+  assert.ok(shiftCSV(sh).includes("Q14") && shiftCSV(sh).includes("Wagon A"));
+  assert.ok(isMoving(els[0]) && !isMoving(els[1]));
+  console.log("scenes ok", sh[0].rows.map((r) => r.name + ": " + r.from + " -> " + r.to).join(" | "));
+}
+console.log("ALL PASS 4");

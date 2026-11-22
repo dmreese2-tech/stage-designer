@@ -15,6 +15,8 @@ import { UnderlayPanel, GroupPanel, PropsPanel, elBounds } from "./panels.jsx";
 import NotesModal from "./NotesModal.jsx";
 import CompareModal from "./CompareModal.jsx";
 import LightingModal from "./LightingModal.jsx";
+import ScenesView from "./ScenesView.jsx";
+import { syncScene, applyScene, newSceneId, nextSceneLabel, sceneTitle, capturePose, isMoving } from "./scenes.js";
 import { zlibSync, unzlibSync, strToU8, strFromU8 } from "fflate";
 const View3D = lazy(() => import("./View3D.jsx"));   // three.js loads only when the 3D view is opened
 
@@ -122,6 +124,9 @@ export default function StageDesigner() {
   const [snapStep, setSnapStep] = useState(() => { const v = +localStorage.getItem("sd_snap"); return [0, GRID, GRID/2, GRID/12].includes(v) && localStorage.getItem("sd_snap") !== null ? v : GRID; });
   SNAP = snapStep;
   const [layerLocked, setLayerLocked] = useState(_auto?.layerLocked ?? {});
+  const [scenes, setScenes] = useState(_auto?.scenes ?? []);                    // one layout per scene; only Moving pieces differ
+  const [activeSceneId, setActiveSceneId] = useState(_auto?.activeSceneId ?? _auto?.scenes?.[0]?.id ?? null);
+  const [showScenes, setShowScenes] = useState(false);
   const [underlay, setUnderlay] = useState(_auto?.underlay ?? null);   // ground-plan image behind the stage
   const [calib, setCalib] = useState(null);                            // { pts:[{x,y}] } while calibrating the underlay scale
   const [showBuild, setShowBuild] = useState(false);
@@ -156,7 +161,7 @@ export default function StageDesigner() {
   useEffect(() => {
     if (sharedMode) return;
     const t = setTimeout(() => {
-      const base = { version:MODEL_VERSION, savedAt:Date.now(), projectInfo, stageW, stageH, venue, elements, layerLocked };
+      const base = { version:MODEL_VERSION, savedAt:Date.now(), projectInfo, stageW, stageH, venue, elements, layerLocked, scenes, activeSceneId };
       try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ ...base, underlay })); setSaveNote(""); setSavedAt(Date.now()); }
       catch {
         try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(base)); setSaveNote(underlay ? "Underlay image is too large to autosave" : ""); setSavedAt(Date.now()); }
@@ -164,12 +169,12 @@ export default function StageDesigner() {
       }
     }, 800);
     return () => clearTimeout(t);
-  }, [elements, projectInfo, stageW, stageH, venue, layerLocked, underlay, sharedMode]);
+  }, [elements, projectInfo, stageW, stageH, venue, layerLocked, underlay, sharedMode, scenes, activeSceneId]);
   useEffect(() => { try { localStorage.setItem("sd_snap", String(snapStep)); } catch {} }, [snapStep]);
 
   const newProject = () => {
     if (!window.confirm("Start a new project? The current plan will be cleared. Export JSON first if you want to keep it.")) return;
-    loadElements([]); setSelected(null); setUnderlay(null); setLayerLocked({});
+    loadElements([]); setSelected(null); setUnderlay(null); setLayerLocked({}); setScenes([]); setActiveSceneId(null);
     setProjectInfo({ title:"", venue:"Burgdorff Center", designer:"", director:"", revision:"1" });
     try { localStorage.removeItem(AUTOSAVE_KEY); } catch {}
   };
@@ -635,7 +640,7 @@ export default function StageDesigner() {
 
   // ── JSON export / import ──────────────────────────────────────────────────
   const exportJSON = () => {
-    const data = JSON.stringify({ version:MODEL_VERSION, projectInfo, stageW, stageH, venue, shop, layerLocked, underlay, elements }, null, 2);
+    const data = JSON.stringify({ version:MODEL_VERSION, projectInfo, stageW, stageH, venue, shop, layerLocked, underlay, scenes, activeSceneId, elements }, null, 2);
     const blob = new Blob([data], { type:"application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = `${projectInfo.title||"stage-layout"}.json`; a.click();
@@ -653,6 +658,7 @@ export default function StageDesigner() {
         }
         if (data.shop) setShop(mergeShop(data.shop));
         setLayerLocked(data.layerLocked || {});
+        setScenes(Array.isArray(data.scenes) ? data.scenes : []); setActiveSceneId(data.activeSceneId ?? data.scenes?.[0]?.id ?? null);
         setUnderlay(data.underlay || null);
         if (data.stageW) setStageW(data.stageW);
         if (data.stageH) setStageH(data.stageH);
@@ -665,7 +671,7 @@ export default function StageDesigner() {
   };
 
   const copyShareLink = async () => {
-    const data = JSON.stringify({ version:MODEL_VERSION, projectInfo, stageW, stageH, venue, shop, layerLocked, elements });
+    const data = JSON.stringify({ version:MODEL_VERSION, projectInfo, stageW, stageH, venue, shop, layerLocked, scenes, activeSceneId, elements });
     const url = location.origin + location.pathname + "#share=" + b64u(zlibSync(strToU8(data), { level:9 }));
     try { await navigator.clipboard.writeText(url); alert(`Link copied (${Math.round(url.length/1024)} KB).` + (url.length > 8000 ? "\n\nThis link is long. Some chat and email apps cut long links, so for a big plan send the JSON file instead." : "\n\nAnyone with the link sees the plan as of right now. The underlay image is not included.")); }
     catch { window.prompt("Copy this link:", url); }
@@ -935,6 +941,37 @@ export default function StageDesigner() {
   const inspTab = sidebarTab === "elements" ? "props" : sidebarTab;
   const openPins = elements.filter(e=>e.type==="pin"&&!e.resolved).length;
   useEffect(() => { if (vp !== "desktop" && selected) setPanelMode(m => m || "peek"); }, [selected, vp]);
+  // ── scenes ──────────────────────────────────────────────────────────────
+  useEffect(() => { if (activeSceneId) setScenes(sc => syncScene(sc, activeSceneId, elements)); }, [elements, activeSceneId]);
+  const activeScene = scenes.find(sc => sc.id === activeSceneId) || null;
+  const startScenes = () => {
+    const first = { id:newSceneId(), act:"1", scene:"1", name:"", cue:"", crew:"", notes:"", pose:{} };
+    first.pose = Object.fromEntries(elements.filter(isMoving).map(e => [e.id, capturePose(e)]));
+    setScenes([first]); setActiveSceneId(first.id);
+  };
+  const addScene = () => {
+    if (!scenes.length) return startScenes();
+    const synced = syncScene(scenes, activeSceneId, elements);
+    const lbl = nextSceneLabel(synced, activeSceneId);
+    const sc = { id:newSceneId(), act:lbl.act, scene:lbl.scene, name:"", cue:"", crew:"", notes:"", pose:Object.fromEntries(elements.filter(isMoving).map(e => [e.id, capturePose(e)])) };
+    const i = synced.findIndex(x => x.id === activeSceneId);
+    const next = synced.slice(); next.splice(i + 1, 0, sc);
+    setScenes(next); setActiveSceneId(sc.id);
+  };
+  const goScene = (id) => {
+    const synced = syncScene(scenes, activeSceneId, elements), target = synced.find(x => x.id === id); if (!target) return;
+    setScenes(synced); setActiveSceneId(id);
+    setElements(applyScene(elementsRef.current, target));
+    closeAll();
+  };
+  const stepScene = (d) => { const i = scenes.findIndex(x => x.id === activeSceneId), t = scenes[i + d]; if (t) goScene(t.id); };
+  const updateScene = (id, patch) => setScenes(sc => sc.map(x => x.id === id ? { ...x, ...patch } : x));
+  const deleteScene = (id) => {
+    const i = scenes.findIndex(x => x.id === id), rest = scenes.filter(x => x.id !== id);
+    setScenes(rest);
+    if (id === activeSceneId) { const t = rest[Math.min(i, rest.length - 1)]; setActiveSceneId(t ? t.id : null); if (t) setElements(applyScene(elementsRef.current, t)); }
+  };
+  const moveScene = (id, d) => setScenes(sc => { const i = sc.findIndex(x => x.id === id), j = i + d; if (i < 0 || j < 0 || j >= sc.length) return sc; const n = sc.slice(); [n[i], n[j]] = [n[j], n[i]]; return n; });
   const resetView = () => {
     const r = vp !== "desktop" && svgRef.current ? svgRef.current.getBoundingClientRect() : null;
     if (r && r.width > 0) {                       // fit the stage in the window on tablets and phones
@@ -946,10 +983,11 @@ export default function StageDesigner() {
   };
   useEffect(() => { if (vp !== "desktop") { const t = setTimeout(resetView, 60); return () => clearTimeout(t); } }, [vp]);
   const zoomBy = (f) => setZoom(z => Math.min(4, Math.max(0.15, z * f)));
-  const inWorkspace = showBuild || show3D || showNotes || showLighting;
-  const closeAll = () => { setShowBuild(false); setShow3D(false); setShowNotes(false); setShowLighting(false); };
+  const inWorkspace = showBuild || show3D || showNotes || showLighting || showScenes;
+  const closeAll = () => { setShowBuild(false); setShow3D(false); setShowNotes(false); setShowLighting(false); setShowScenes(false); };
   const workspaces = [
     { id:"plan",  label:"Plan",  icon:"plan",  on:!inWorkspace, go: closeAll },
+    { id:"scenes", label:"Scenes", icon:"layers", on:showScenes, go:()=>{ closeAll(); setShowScenes(true); } },
     { id:"3d",    label:"3D",    icon:"cube",  on:show3D, go:()=>{ closeAll(); setShow3D(true); } },
     { id:"paper", label:"Paperwork", icon:"paper", on:showLighting, go:()=>{ closeAll(); setShowLighting(true); } },
     { id:"build", label:"Build", icon:"build", on:showBuild, go:()=>{ closeAll(); setShowBuild(true); } },
@@ -1041,8 +1079,19 @@ export default function StageDesigner() {
           <Btn onClick={leaveShared} title="Keep working on this plan and save it in this browser (replaces your saved plan here)">Keep a copy in this browser</Btn>
         </div>
       )}
+      {scenes.length > 0 && !inWorkspace && (() => {
+        const i = scenes.findIndex(x => x.id === activeSceneId);
+        const nb = (d, lbl) => <button aria-label={lbl} disabled={i + d < 0 || i + d >= scenes.length} onClick={()=>stepScene(d)} style={ctl(false,{width:44,padding:0,justifyContent:"center",border:`1px solid ${COLORS.border}`,opacity:(i + d < 0 || i + d >= scenes.length)?0.35:1})}><span style={{fontSize:18,lineHeight:1}}>{d<0?"‹":"›"}</span></button>;
+        return (
+        <div role="group" aria-label="Scene" style={{ flexShrink:0, display:"flex", alignItems:"center", gap:8, padding:"4px 12px", background:COLORS.raised, borderBottom:`1px solid ${COLORS.border}` }}>
+          {nb(-1,"Previous scene")}
+          <button onClick={()=>{ closeAll(); setShowScenes(true); }} title="Open scenes and shift list" style={ctl(false,{flex:1,minWidth:0,justifyContent:"center",border:`1px solid ${COLORS.accent}`,color:COLORS.text,overflow:"hidden",textOverflow:"ellipsis"})}>
+            <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{activeScene ? sceneTitle(activeScene) : "Scenes"}</span><span style={{color:COLORS.textDim,fontSize:12}}>{i+1}/{scenes.length}</span></button>
+          {nb(1,"Next scene")}
+        </div>); })()}
       <div style={{ display:"flex", flex:1, minHeight:0, overflow:"hidden", position:"relative", zIndex:0 }}>
         {inWorkspace && <div style={{ position:"absolute", inset:0, zIndex:500, background:COLORS.bg }}>
+      {showScenes && <ScenesView scenes={scenes} activeId={activeSceneId} elements={elements} setElements={setElements} stageW={stageW} stageH={stageH} grid={GRID} projectInfo={projectInfo} onStart={startScenes} onAdd={addScene} onGo={goScene} onUpdate={updateScene} onDelete={deleteScene} onMove={moveScene}/>}
       {showBuild && <ConstructionModal elements={elements} setElements={setElements} shop={shop} setShop={setShop} projectInfo={projectInfo} grid={GRID} selectedId={selected} onClose={()=>setShowBuild(false)}/>}
       {show3D && <Suspense fallback={<div style={{ position:"absolute", inset:0, background:"#0B0E11", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
         <View3D elements={elements} venue={venue} stageW={stageW} stageH={stageH} projectInfo={projectInfo} onClose={()=>setShow3D(false)}/>
@@ -1380,7 +1429,7 @@ export default function StageDesigner() {
         <div role="tablist" aria-label="Workspaces" className="sd-safe-bottom" style={{ flexShrink:0, display:"flex", background:COLORS.raised, borderTop:`1px solid ${COLORS.border}` }}>
           {workspaces.map(w => (
             <button key={w.id} role="tab" aria-selected={w.on} onClick={w.go}
-              style={{ flex:1, minHeight:56, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, background:"transparent", border:"none", borderTop:`2px solid ${w.on?COLORS.accent:"transparent"}`, color:w.on?COLORS.text:COLORS.textDim, cursor:"pointer", fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:500, fontSize:11 }}>
+              style={{ flex:1, minHeight:56, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, background:"transparent", border:"none", borderTop:`2px solid ${w.on?COLORS.accent:"transparent"}`, color:w.on?COLORS.text:COLORS.textDim, cursor:"pointer", fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.02em", fontWeight:500, fontSize:10 }}>
               <Icon name={w.icon} size={22}/><span>{w.label.replace(/ \(\d+\)/,"")}{openPins && w.id==="notes" ? ` ${openPins}` : ""}</span></button>))}
         </div>)}
 
