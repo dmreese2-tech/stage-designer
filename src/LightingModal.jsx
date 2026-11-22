@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { COLORS, FIXTURE_DEFS, GRID, FONT_UI } from "./constants.js";
 import { DEFAULT_HEIGHT_IN } from "./stage.js";
 import { Btn } from "./ui.jsx";
+import { WsFrame } from "./layout.jsx";
 import { gelHex, trimFt, isFixture, specOf, loadSummary, colourCuts, equipmentKey, autoNumberChannels, autoAddress, patchConflicts, patchCSV, beamInfo, mountHeightFt } from "./lighting.js";
 
 const th = { textAlign: "left", padding: "4px 8px", fontSize: 10, color: COLORS.textDim, borderBottom: `1px solid ${COLORS.border}`, whiteSpace: "nowrap" };
@@ -26,16 +27,8 @@ export default function LightingModal({ stageW = 36, stageH = 27, elements, setE
   const tabs = [["patch", "Patch"], ["load", "Load & power"], ["colour", "Colour cuts"], ["key", "Equipment key"], ["focus", "Focus chart"], ["section", "Side section"]];
   const inp = { width: 58, background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 3, padding: "2px 4px", fontSize: 11, fontFamily: "inherit" };
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 900, maxWidth: "96vw", height: "86vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap" }}>
-          <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>LIGHTING PAPERWORK</span>
-          {tabs.map(([id, l]) => <Btn key={id} active={tab === id} onClick={() => setTab(id)}>{l}</Btn>)}
-          <div style={{ flex: 1 }} />
-          <Btn onClick={download}>⬇ Patch CSV</Btn>
-          <button onClick={onClose} style={{ background: "transparent", color: COLORS.textDim, border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
-        </div>
-        <div style={{ flex: 1, overflow: "auto", padding: 14 }}>
+    <WsFrame title="Lighting paperwork" tabs={tabs} tab={tab} setTab={setTab} main={{ label: "Patch CSV", onClick: download }}>
+      <div>
           <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 10, lineHeight: 1.5 }}>
             Wattage, weight and footprint start from generic values for each fixture type. Set the real numbers for your inventory in each fixture's Properties.
           </div>
@@ -45,7 +38,7 @@ export default function LightingModal({ stageW = 36, stageH = 27, elements, setE
               <Btn onClick={() => setElements((e) => autoAddress(e))} title="Assigns DMX universe and address in channel order">Auto-assign DMX addresses</Btn>
               {bad.size > 0 && <span style={{ color: "#ff6677", fontSize: 11, alignSelf: "center" }}>⚠ {bad.size} fixtures share DMX addresses</span>}
             </div>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr>{["Ch", "Dimmer", "Univ", "Addr", "Footprint", "Position", "Type", "W", "Colour", "Hang ft", "Throw ft"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>{lights.map((l) => { const sp = specOf(l), bi = beamInfo(l, elements); return (
                 <tr key={l.id} style={bad.has(l.id) ? { background: "#ff335522" } : null}>
@@ -57,12 +50,12 @@ export default function LightingModal({ stageW = 36, stageH = 27, elements, setE
                   <td style={td}>{sp.watts}</td><td style={td}>{l.gelCode && l.gelCode !== "Open" ? l.gelCode : "—"}</td>
                   <td style={td}>{mountHeightFt(l, elements).toFixed(1)}</td><td style={td}>{bi.throwFt.toFixed(1)}</td>
                 </tr>); })}</tbody>
-            </table>
+            </table></div>
             {!lights.length && <div style={{ color: COLORS.textDim, fontSize: 12 }}>No fixtures on the plot yet.</div>}
           </>)}
           {tab === "load" && (<>
             <label style={{ fontSize: 11, color: COLORS.textDim }}>Supply voltage <select value={volts} onChange={(e) => setVolts(+e.target.value)} style={{ ...inp, width: 70 }}><option value={120}>120 V</option><option value={208}>208 V</option><option value={230}>230 V</option></select></label>
-            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
+            <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
               <thead><tr>{["Batten", "Fixtures", "Weight (lb)", "Capacity (lb)", "Watts", "Amps"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {load.rows.map((r) => (<tr key={r.id} style={r.over ? { background: "#ff335533" } : null}>
@@ -71,37 +64,36 @@ export default function LightingModal({ stageW = 36, stageH = 27, elements, setE
                 {load.loose.count > 0 && <tr><td style={td}>Not on a batten</td><td style={td}>{load.loose.count}</td><td style={td}>{load.loose.lb}</td><td style={td}>—</td><td style={td}>{load.loose.watts}</td><td style={td}>{(load.loose.watts / volts).toFixed(1)}</td></tr>}
                 <tr style={{ fontWeight: "bold" }}><td style={td}>Total</td><td style={td}>{load.count}</td><td style={td}>{load.rows.reduce((s, r) => s + r.lb, 0) + load.loose.lb}</td><td style={td} /><td style={td}>{load.totalWatts}</td><td style={td}>{load.totalAmps.toFixed(1)}</td></tr>
               </tbody>
-            </table>
+            </table></div>
             <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 8, lineHeight: 1.5 }}>Set a batten's load capacity in its Properties to get an over-capacity warning. Totals are connected load, so check them against your dimmer racks and circuits. Weights exclude cable, clamps and accessories.</div>
           </>)}
           {tab === "colour" && (<>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr>{["Colour", "Name", "Frame (in)", "Cuts needed", "Cuts per 20×24 in sheet", "Sheets"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>{cuts.map((c) => <tr key={c.code + c.frame}><td style={td}>{c.code}</td><td style={td}>{c.name}</td><td style={td}>{c.frame}</td><td style={td}>{c.qty}</td><td style={td}>{c.perSheet}</td><td style={td}>{c.sheets}</td></tr>)}</tbody>
-            </table>
+            </table></div>
             {!cuts.length && <div style={{ color: COLORS.textDim, fontSize: 12 }}>No coloured fixtures with a colour frame size set.</div>}
             <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 8 }}>Sheet size is assumed to be 20×24 in, with the frame cut square. Adjust for your supplier's roll or sheet.</div>
           </>)}
           {tab === "focus" && (<>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr>{["Ch", "Position", "Type", "Colour", "Aim: from centre line", "Aim: from downstage edge", "Throw ft", "Beam ft", "Notes"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>{lights.map((l) => { const bi = beamInfo(l, elements); const ax = l.aim ? l.aim.x / GRID - stageW / 2 : null, ay = l.aim ? stageH - l.aim.y / GRID : null; return (
                 <tr key={l.id}><td style={td}>{l.channel ?? ""}</td><td style={td}>{bl(l.battenId) || "—"}</td><td style={td}>{label(l)}</td><td style={td}>{l.gelCode && l.gelCode !== "Open" ? l.gelCode : "—"}</td>
                   <td style={td}>{ax === null ? <span style={{ color: COLORS.textDim }}>no aim set</span> : `${Math.abs(ax).toFixed(1)} ft ${ax < -0.05 ? "SR" : ax > 0.05 ? "SL" : "CL"}`}</td>
                   <td style={td}>{ay === null ? "—" : `${ay.toFixed(1)} ft`}</td><td style={td}>{bi.throwFt.toFixed(1)}</td><td style={td}>{bi.angle ? bi.dia.toFixed(1) : "—"}</td><td style={td}>{l.notes || ""}</td></tr>); })}</tbody>
-            </table>
+            </table></div>
             <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 8 }}>Set each fixture's aim point on the plot (Properties). Distances are measured from the centre line and from the downstage edge of the stage rectangle. Stage right is the actor's right, facing the audience.</div>
           </>)}
           {tab === "section" && <SectionView elements={elements} stageW={stageW} stageH={stageH} />}
           {tab === "key" && (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead><tr>{["Instrument", "Qty", "Watts each", "Weight each (lb)"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>{key.map((k) => <tr key={k.type}><td style={td}>{k.name}</td><td style={td}>{k.qty}</td><td style={td}>{k.watts}</td><td style={td}>{k.lb}</td></tr>)}</tbody>
-            </table>
+            </table></div>
           )}
-        </div>
       </div>
-    </div>
+    </WsFrame>
   );
 }
 
