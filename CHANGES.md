@@ -96,3 +96,5 @@ Every rule that was fixed in the templates is now a Shop Standards setting, with
 - The logo links back to apps.upstage.systems on phone and tablet (desktop keeps the Apps button).
 
 - Properties panel has a Height field for upright pieces (3D and Build read it); Build height edits update the same field. Elevation relabelled "Elevation / deck height".
+
+- Properties: Size is now "Footprint on plan" (Width, Depth); one Height (ft-in) field drives 3D and Build; elevation is "Raised off floor" (platforms: Height, top of deck). Build no longer has its own height box.

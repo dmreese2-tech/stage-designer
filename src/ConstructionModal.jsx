@@ -46,7 +46,7 @@ function PieceDetail({ pc, onPatch }) {
             </select>
           </div>
         )}
-        {pc.template !== "practical" && (<NumField label={heightLabel} width={110} value={(lowPieces.includes(pc.template) ? el.elevation : el.height) || c.heightIn || defH} onChange={(v) => onPatch({ heightIn: v || undefined })} />)}
+        {pc.template !== "practical" && <div style={{ fontSize: 11, color: C.dim, alignSelf: "flex-end", paddingBottom: 6 }}>{heightLabel.replace(" (in)", "")}: {ftIn(pc.dims && (lowPieces.includes(pc.template) ? el.elevation : el.height) || defH)} · change it in Properties</div>}
         {pc.template === "practical" && (<>
           <NumField label="Bulb (W)" width={90} value={c.watts ?? ""} onChange={(v) => onPatch({ watts: v || undefined })} />
           <NumField label="Cord (ft)" width={90} value={c.cordFt ?? ""} onChange={(v) => onPatch({ cordFt: v || undefined })} />
@@ -375,11 +375,6 @@ export default function ConstructionModal({ elements, setElements, shop, setShop
   const patchEl = (id, patch) => setElements((prev) => prev.map((e) => {
     if (e.id !== id) return e;
     const next = { ...e, construction: { ...(e.construction || {}), ...patch } };
-    if ("heightIn" in patch) {   // keep Build and the Properties panel on one value
-      const low = e.type === "platform" || e.type === "stairs" || /tri/i.test(e.type || "");
-      next[low ? "elevation" : "height"] = patch.heightIn || (low ? 0 : undefined);
-      next.construction.heightIn = undefined;
-    }
     return next;
   }));
   const doPrint = () => { const w = window.open("", "_blank"); if (w) { w.document.write(printHTML(result, plan, shop, projectInfo)); w.document.close(); } };
