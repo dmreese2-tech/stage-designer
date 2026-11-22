@@ -7,7 +7,7 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { zipSync, strToU8 } from "fflate";
 import { buildMVRxml } from "./mvr.js";
 import { USDZExporter } from "three/examples/jsm/exporters/USDZExporter.js";
-import { GRID, COLORS, FIXTURE_DEFS, FONT_UI } from "./constants.js";
+import { GRID, COLORS, FIXTURE_DEFS, FONT_UI, FONT_DISPLAY } from "./constants.js";
 import { stageOutline, DEFAULT_HEIGHT_IN } from "./stage.js";
 import { isFixture, mountHeightFt, specOf, gelHex, trimFt, AIM_HEIGHT_FT, DEFAULT_HANG_FT } from "./lighting.js";
 
@@ -63,7 +63,7 @@ function buildWall(el) {
 
 function buildScene(opts) {
   const { elements, venue, stageW, stageH, deckFt, showWalls, showBeams, allBeams, noFixtures } = opts;
-  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0c0f);
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0B0E11);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x303040, 0.9));
   const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(20, 40, 30); scene.add(sun);
   const SW = stageW, SH = stageH;
@@ -265,13 +265,13 @@ export default function View3D({ elements, venue, stageW, stageH, projectInfo, o
   };
   const hold = (k, v) => () => { walkRef.current.keys[k] = v; };
 
-  const btn = (active) => ({ background: active ? COLORS.accent : "rgba(22,33,62,0.92)", color: active ? "#fff" : COLORS.text, border: `1px solid ${active ? COLORS.accent : COLORS.border}`, borderRadius: 5, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontFamily: "inherit" });
+  const btn = (active) => ({ background: active ? COLORS.accentDim : "rgba(18,22,27,0.92)", color: active ? COLORS.text : COLORS.text, border: `1px solid ${active ? COLORS.accent : COLORS.border}`, borderRadius: 5, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontFamily: FONT_DISPLAY, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em" });
   const lab = { fontSize: 9, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 };
   const field = { background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: "3px 5px", fontSize: 11, fontFamily: "inherit" };
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#0a0c0f", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#0B0E11", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: COLORS.panel, borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap" }}>
-        <span style={{ color: COLORS.accent, fontWeight: "bold", fontSize: 13, letterSpacing: 1 }}>🧊 3D VIEW — {projectInfo?.title || "Untitled"}</span>
+        <span style={{ color: COLORS.accent, fontWeight: "bold", fontSize: 13, letterSpacing: 1 }}>3D VIEW — {projectInfo?.title || "Untitled"}</span>
         <div style={{ width: 1, height: 18, background: COLORS.border }} />
         {[["audience", "Audience"], ["top", "Top"], ["sr", "Stage R"], ["sl", "Stage L"]].map(([m, l]) => <button key={m} style={btn(false)} onClick={() => { setSeatMode(false); apiRef.current.look(m); }}>{l}</button>)}
         <div style={{ width: 1, height: 18, background: COLORS.border }} />
@@ -280,9 +280,9 @@ export default function View3D({ elements, venue, stageW, stageH, projectInfo, o
         <button style={btn(showWalls)} onClick={() => setShowWalls((s) => !s)}>Walls</button>
         <label style={{ fontSize: 11, color: COLORS.textDim }}>Stage height (ft) <input type="number" min="0" step="0.5" value={deckFt} onChange={(e) => setDeckFt(Math.max(0, +e.target.value))} style={{ ...field, width: 52 }} /></label>
         <div style={{ flex: 1 }} />
-        <button style={btn(walk)} title="Walk through the set at eye height: drag to look, W A S D or the arrows to move" onClick={toggleWalk}>🚶 Walk</button>
+        <button style={btn(walk)} title="Walk through the set at eye height: drag to look, W A S D or the arrows to move" onClick={toggleWalk}>Walk</button>
         <button style={btn(false)} title="Lighting plot for Vision, Capture, grandMA3 and others: fixture positions, aim, patch and colour, plus the set. Choose the fixture models in the receiving software." onClick={exportMVR}>⬇ MVR</button>
-        <button style={btn(false)} title="Opens at real size in AR Quick Look on iPhone and iPad" onClick={exportUSDZ}>📱 AR (.usdz)</button>
+        <button style={btn(false)} title="Opens at real size in AR Quick Look on iPhone and iPad" onClick={exportUSDZ}>AR (.usdz)</button>
         <button style={btn(false)} onClick={exportGLB}>⬇ glTF (.glb)</button>
         <button onClick={onClose} style={{ background: "transparent", color: COLORS.textDim, border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
       </div>
@@ -301,7 +301,7 @@ export default function View3D({ elements, venue, stageW, stageH, projectInfo, o
             <input type="number" step="0.25" min="2" value={eyeFt} onChange={(e) => setEyeFt(+e.target.value || 3.75)} style={{ ...field, width: 60 }} />
             <div style={{ marginTop: 8, fontSize: 12 }}>{sight ? <>Can see <b style={{ color: sight.pct > 85 ? "#7fd67f" : sight.pct > 60 ? "#ffcc66" : COLORS.accent }}>{sight.pct}%</b> of the stage <span style={{ color: COLORS.textDim }}>({sight.total - sight.hidden} of {sight.total} spots)</span></> : ""}</div>
             <div style={{ fontSize: 9, color: COLORS.textDim, margin: "4px 0 6px", lineHeight: 1.4 }}>Checks a 5'6" performer at each 1 ft grid point, on top of platforms. Red dots are spots this seat can't see. The blue ball is the seat.</div>
-            <button style={{ ...btn(seatMode), width: "100%" }} onClick={goSeat}>👁 View from this seat</button>
+            <button style={{ ...btn(seatMode), width: "100%" }} onClick={goSeat}>View from this seat</button>
           </>)}
         </div>
         {walk && (

@@ -29,7 +29,7 @@ export default function LightingModal({ stageW = 36, stageH = 27, elements, setE
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 900, maxWidth: "96vw", height: "86vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap" }}>
-          <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>💡 LIGHTING PAPERWORK</span>
+          <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>LIGHTING PAPERWORK</span>
           {tabs.map(([id, l]) => <Btn key={id} active={tab === id} onClick={() => setTab(id)}>{l}</Btn>)}
           <div style={{ flex: 1 }} />
           <Btn onClick={download}>⬇ Patch CSV</Btn>

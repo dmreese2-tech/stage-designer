@@ -17,14 +17,14 @@ export default function NotesModal({ elements, setElements, onPick, onClose }) {
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 560, maxWidth: "94vw", maxHeight: "84vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
-          <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>💬 NOTES ON THE PLOT</span>
+          <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>NOTES ON THE PLOT</span>
           <div style={{ flex: 1 }} />
           <label style={{ fontSize: 11, color: COLORS.textDim }}><input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} /> Hide resolved</label>
           <Btn onClick={csv}>⬇ CSV</Btn>
           <button onClick={onClose} style={{ background: "transparent", color: COLORS.textDim, border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ padding: 14, overflow: "auto" }}>
-          <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 10, lineHeight: 1.5 }}>Use the 💬 tool (or press C) and click the plot to drop a pin. Pins live in the Notes layer, so hiding that layer hides them, and they are saved in the JSON and share links.</div>
+          <div style={{ fontSize: 10, color: COLORS.textDim, marginBottom: 10, lineHeight: 1.5 }}>Use the tool (or press C) and click the plot to drop a pin. Pins live in the Notes layer, so hiding that layer hides them, and they are saved in the JSON and share links.</div>
           {!shown.length && <div style={{ fontSize: 12, color: COLORS.textDim }}>{pins.length ? "All notes are resolved." : "No notes yet."}</div>}
           {shown.map((p) => (
             <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 0", borderBottom: `1px solid ${COLORS.border}55`, opacity: p.resolved ? 0.55 : 1 }}>

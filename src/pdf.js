@@ -105,14 +105,14 @@ export function generateInstrumentSchedulePDF(elements, stageW, stageH, projectI
   .gel-chip { display:flex; align-items:center; gap:5px; padding:3px 8px; border:1px solid #ddd; border-radius:3px; font-size:8pt; }
   .gel-dot { width:14px; height:14px; border-radius:50%; border:1px solid #555; }
 
-  .print-btn { position:fixed; top:12px; right:12px; background:#4a90d9; color:#fff; border:none;
+  .print-btn { position:fixed; top:12px; right:12px; background:#CC8530; color:#1D2127; border:none;
                padding:10px 20px; border-radius:6px; font-size:11pt; cursor:pointer; font-weight:bold; z-index:999; }
   .print-btn:hover { background:#c03050; }
   footer { margin-top:24px; font-size:7.5pt; color:#888; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between; }
 </style>
 </head>
 <body>
-<button class="print-btn no-print" onclick="window.print()">🖨 Print / Save PDF</button>
+<button class="print-btn no-print" onclick="window.print()">Print / Save PDF</button>
 <div class="page">
 
   <!-- TITLE BLOCK -->
@@ -392,7 +392,7 @@ export function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projec
   .stat .n { font-size:18pt; font-weight:900; color:#222; }
   .stat .k { font-size:7.5pt; text-transform:uppercase; letter-spacing:0.5px; color:#888; margin-top:2px; }
 
-  .plot-frame { border:1px solid #222; border-radius:4px; overflow:hidden; background:#0f1115; }
+  .plot-frame { border:1px solid #222; border-radius:4px; overflow:hidden; background:#0B0E11; }
   .plot-frame svg { display:block; width:100%; height:auto; }
 
   h2 { font-size:11pt; font-weight:900; text-transform:uppercase; letter-spacing:1.5px;
@@ -404,14 +404,14 @@ export function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projec
   tr.grp td { background:#e4e4e4; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; font-size:8pt; }
   tr { page-break-inside:avoid; }
 
-  .print-btn { position:fixed; top:12px; right:12px; background:#4a90d9; color:#fff; border:none;
+  .print-btn { position:fixed; top:12px; right:12px; background:#CC8530; color:#1D2127; border:none;
                padding:10px 20px; border-radius:6px; font-size:11pt; cursor:pointer; font-weight:bold; z-index:999; }
   .print-btn:hover { background:#c03050; }
   footer { margin-top:16px; font-size:7.5pt; color:#888; border-top:1px solid #ddd; padding-top:8px; display:flex; justify-content:space-between; }
 </style>
 </head>
 <body>
-<button class="print-btn no-print" onclick="window.print()">🖨 Print / Save PDF</button>
+<button class="print-btn no-print" onclick="window.print()">Print / Save PDF</button>
 ${overviewPage}
 ${typePages}
 </body>

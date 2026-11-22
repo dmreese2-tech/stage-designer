@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import ConstructionModal from "./ConstructionModal.jsx";
 import { loadShop, mergeShop } from "./construction.js";
-import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE, FONT_UI } from "./constants.js";
+import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE, FONT_UI, FONT_DISPLAY } from "./constants.js";
 import { parseFtIn } from "./units.js";
 import { FixtureSVG, SetPieceSVG, BattenSVG, TextLabelSVG, PinSVG } from "./renderers.jsx";
 import { generateInstrumentSchedulePDF, generateDesignPDF } from "./pdf.js";
@@ -794,7 +794,7 @@ export default function StageDesigner() {
 
       {showProjectInfo && <ProjectInfoModal projectInfo={projectInfo} setProjectInfo={setProjectInfo} onClose={()=>setShowProjectInfo(false)}/>}
       {showBuild && <ConstructionModal elements={elements} setElements={setElements} shop={shop} setShop={setShop} projectInfo={projectInfo} grid={GRID} selectedId={selected} onClose={()=>setShowBuild(false)}/>}
-      {show3D && <Suspense fallback={<div style={{ position:"fixed", inset:0, zIndex:1000, background:"#0a0c0f", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
+      {show3D && <Suspense fallback={<div style={{ position:"fixed", inset:0, zIndex:1000, background:"#0B0E11", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
         <View3D elements={elements} venue={venue} stageW={stageW} stageH={stageH} projectInfo={projectInfo} onClose={()=>setShow3D(false)}/>
       </Suspense>}
       {showNotes && <NotesModal elements={elements} setElements={setElements} onPick={(id)=>{ setSelected(id); setSidebarTab("props"); setShowNotes(false); }} onClose={()=>setShowNotes(false)}/>}
@@ -811,18 +811,18 @@ export default function StageDesigner() {
           onMouseLeave={e=>{ e.currentTarget.style.color=COLORS.textDim; e.currentTarget.style.borderColor=COLORS.border; }}>
           ← Apps
         </a>
-        <span style={{ display:"flex", flexDirection:"column", lineHeight:1.1, marginRight:4 }}><span style={{ color:COLORS.textDim, fontSize:8, letterSpacing:2, fontWeight:600 }}>UPSTAGE SYSTEMS</span><span style={{ color:COLORS.text, fontWeight:600, fontSize:15, letterSpacing:-0.2 }}>Stage Designer</span></span>
+        <span style={{ display:"flex", flexDirection:"column", lineHeight:1.1, marginRight:4 }}><span style={{ color:COLORS.accent, fontFamily:FONT_DISPLAY, fontSize:9, letterSpacing:"0.2em", fontWeight:500 }}>UPSTAGE SYSTEMS</span><span style={{ color:COLORS.text, fontFamily:FONT_DISPLAY, fontWeight:600, fontSize:16, letterSpacing:"0.02em" }}>STAGE DESIGNER</span></span>
         {projectInfo.title && <span style={{ fontSize:11, color:COLORS.textDim }}>— {projectInfo.title}</span>}
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
         {TOOLS.map(t=>(
-          <Btn key={t.id} active={tool===t.id} onClick={()=>setTool(t.id)} title={t.label}>{t.icon} {t.label.split(" ")[0]}</Btn>
+          <Btn key={t.id} active={tool===t.id} onClick={()=>setTool(t.id)} title={t.label}>{t.label.split(" ")[0]}</Btn>
         ))}
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
         <Btn onClick={undo} title="Undo (Ctrl/Cmd+Z)" disabled={!histCount.u}>↶ Undo</Btn>
         <Btn onClick={redo} title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!histCount.r}>↷ Redo</Btn>
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
         <Btn onClick={copySelected} title="Copy (Ctrl/Cmd+C)">⎘ Copy</Btn>
-        <Btn onClick={pasteClipboard} title="Paste (Ctrl/Cmd+V)">📋 Paste</Btn>
+        <Btn onClick={pasteClipboard} title="Paste (Ctrl/Cmd+V)">Paste</Btn>
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
         <label title="Snap step for placing and dragging" style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, color:COLORS.textDim }}>
           Snap
@@ -836,24 +836,24 @@ export default function StageDesigner() {
         <div style={{ flex:1 }}/>
         <span style={{ fontSize:10, color:COLORS.textDim }}>{Math.round(zoom*100)}%</span>
         <Btn onClick={()=>{setZoom(1);setPan({x: 80 + (venue.stageOffX||0)*GRID, y: 60 + (venue.stageOffY||0)*GRID});}}>⌂ Reset</Btn>
-        <Btn onClick={()=>setShowVenueEditor(true)}>🏛 Venue</Btn>
-        <Btn onClick={()=>setShowProjectInfo(true)}>⚙ Project</Btn>
-        <Btn onClick={()=>setShowSchedule(true)} active={showSchedule}>📋 Schedule</Btn>
-        <Btn onClick={()=>setShowBuild(true)} title="Cut sheets, cut list and buy list for the set pieces">🔨 Build</Btn>
-        <Btn onClick={()=>setShowLighting(true)} title="Patch, load, power, colour cuts and equipment key">💡 Paperwork</Btn>
-        <Btn onClick={()=>setShow3D(true)} title="3D view with beams, sightlines and glTF export">🧊 3D</Btn>
-        <Btn onClick={()=>generateInstrumentSchedulePDF(elements,stageW,stageH,projectInfo)} title="Print instrument/batten schedule as PDF">🖨 Sched PDF</Btn>
-        <Btn onClick={()=>generateDesignPDF(svgRef.current,elements,stageW,stageH,venue,projectInfo,{numberPieces})} title="Print the stage/lighting/set design layout as PDF">🖨 Plot PDF</Btn>
+        <Btn onClick={()=>setShowVenueEditor(true)}>Venue</Btn>
+        <Btn onClick={()=>setShowProjectInfo(true)}>Project</Btn>
+        <Btn onClick={()=>setShowSchedule(true)} active={showSchedule}>Schedule</Btn>
+        <Btn onClick={()=>setShowBuild(true)} title="Cut sheets, cut list and buy list for the set pieces">Build</Btn>
+        <Btn onClick={()=>setShowLighting(true)} title="Patch, load, power, colour cuts and equipment key">Paperwork</Btn>
+        <Btn onClick={()=>setShow3D(true)} title="3D view with beams, sightlines and glTF export">3D</Btn>
+        <Btn onClick={()=>generateInstrumentSchedulePDF(elements,stageW,stageH,projectInfo)} title="Print instrument/batten schedule as PDF">Sched PDF</Btn>
+        <Btn onClick={()=>generateDesignPDF(svgRef.current,elements,stageW,stageH,venue,projectInfo,{numberPieces})} title="Print the stage/lighting/set design layout as PDF">Plot PDF</Btn>
         <label title="Print each set piece's schedule number on the plot PDF" style={{ display:"flex", alignItems:"center", gap:3, fontSize:11, color:COLORS.textDim, cursor:"pointer", userSelect:"none" }}>
           <input type="checkbox" checked={numberPieces} onChange={e=>setNumberPieces(e.target.checked)}/> #
         </label>
         <Btn onClick={exportSVG}>⬇ SVG</Btn>
         <Btn onClick={exportJSON}>⬇ JSON</Btn>
-        <Btn onClick={()=>setShowNotes(true)} title="List of comment pins, with resolve ticks and a CSV export">💬 Notes{elements.filter(e=>e.type==="pin"&&!e.resolved).length ? ` (${elements.filter(e=>e.type==="pin"&&!e.resolved).length})` : ""}</Btn>
+        <Btn onClick={()=>setShowNotes(true)} title="List of comment pins, with resolve ticks and a CSV export">Notes{elements.filter(e=>e.type==="pin"&&!e.resolved).length ? ` (${elements.filter(e=>e.type==="pin"&&!e.resolved).length})` : ""}</Btn>
         <Btn onClick={()=>setShowCompare(true)} title="Compare with an earlier saved JSON file">⇄ Compare</Btn>
-        <Btn onClick={copyShareLink} title="Copy a link that opens this plan for someone else">🔗 Share</Btn>
+        <Btn onClick={copyShareLink} title="Copy a link that opens this plan for someone else">Share</Btn>
         <Btn onClick={()=>fileInputRef.current?.click()}>⬆ Import</Btn>
-        <Btn onClick={newProject} title="Clear the plan and start again">🗋 New</Btn>
+        <Btn onClick={newProject} title="Clear the plan and start again">New</Btn>
         <span title={saveNote || "Your plan is saved in this browser automatically"} style={{ fontSize:10, color:saveNote?COLORS.accent:COLORS.textDim, whiteSpace:"nowrap" }}>
           {saveNote ? "⚠ " + saveNote : savedAt ? `● Saved ${new Date(savedAt).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })}` : ""}
         </span>
@@ -885,7 +885,7 @@ export default function StageDesigner() {
               <div style={{ display:"flex", gap:4, marginBottom:8 }}>
                 {[["set","Set"],["lighting","Lighting"],["batten","Battens"]].map(([id,lbl])=>(
                   <button key={id} onClick={()=>setActiveCat(id)}
-                    style={{ flex:1, background:activeCat===id?COLORS.accent:"transparent", color:activeCat===id?"#fff":COLORS.textDim, border:`1px solid ${activeCat===id?COLORS.accent:COLORS.border}`, borderRadius:4, padding:"4px 0", cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>
+                    style={{ flex:1, background:activeCat===id?COLORS.accentDim:"transparent", color:activeCat===id?COLORS.text:COLORS.textDim, border:`1px solid ${activeCat===id?COLORS.accent:COLORS.border}`, borderRadius:4, padding:"4px 0", cursor:"pointer", fontSize:10, fontFamily:"inherit" }}>
                     {lbl}
                   </button>
                 ))}
@@ -928,7 +928,7 @@ export default function StageDesigner() {
                     style={{ width:18, height:18, borderRadius:3, background:layerVis[l.id]?l.color:COLORS.border, border:"none", cursor:"pointer", flexShrink:0 }}/>
                   <span style={{ fontSize:12, color:layerVis[l.id]?COLORS.text:COLORS.textDim, flex:1 }}>{l.label}</span>
                   <button title={layerLocked[l.id]?"Locked: can't be selected or moved. Click to unlock":"Lock this layer"} onClick={()=>setLayerLocked(v=>({...v,[l.id]:!v[l.id]}))}
-                    style={{ background:layerLocked[l.id]?COLORS.accent:"transparent", color:layerLocked[l.id]?"#fff":COLORS.textDim, border:`1px solid ${layerLocked[l.id]?COLORS.accent:COLORS.border}`, borderRadius:4, fontSize:11, padding:"1px 6px", cursor:"pointer" }}>{layerLocked[l.id]?"🔒":"🔓"}</button>
+                    style={{ background:layerLocked[l.id]?COLORS.accentDim:"transparent", color:layerLocked[l.id]?COLORS.text:COLORS.textDim, border:`1px solid ${layerLocked[l.id]?COLORS.accent:COLORS.border}`, borderRadius:4, fontSize:11, padding:"1px 6px", cursor:"pointer" }}>{layerLocked[l.id]?"Locked":"Lock"}</button>
                 </div>
               ))}
               <UnderlayPanel underlay={underlay} setUnderlay={setUnderlay} calib={calib} setCalib={setCalib} stageW={stageW} stageH={stageH}/>
@@ -943,7 +943,7 @@ export default function StageDesigner() {
                 ))}
               </div>
               <button onClick={()=>setShowVenueEditor(true)} style={{ marginTop:12, width:"100%", background:COLORS.bg, color:COLORS.accent, border:`1px solid ${COLORS.accent}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-                🏛 Open Venue Editor
+                Open Venue Editor
               </button>
               <div style={{ marginTop:8, fontSize:9, color:COLORS.textDim }}>
                 Room: {venue.roomW}'×{venue.roomH}' · {VENUE_CONFIGS[venue.config]?.label||"Custom"}

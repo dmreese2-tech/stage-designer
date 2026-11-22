@@ -1,16 +1,18 @@
 // constants.js — shared constants and definitions for Stage Designer (Upstage Systems).
-// Brand palette matches the apps.upstage.systems hub: near-black ground, slate panels, blue accent.
+// Colours, type and spacing come from the Upstage Systems design system, dark theme (tokens.json).
 export const BRAND = { name: "Upstage Systems", product: "Stage Designer", domain: "apps.upstage.systems" };
-export const FONT_UI = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+export const FONT_UI = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";          // body
+export const FONT_DISPLAY = "'Oswald', 'Arial Narrow', sans-serif";                            // headings, buttons, labels (uppercase)
+export const FONT_MONO = "'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace"; // cue numbers, IDs, data
 export const GRID = 20;
 
 export const COLORS = {
-  bg: "#0f1115", panel: "#1a1d24", border: "#2a2e37",
-  accent: "#4a90d9", accentDim: "#2f6aa5",
+  bg: "#0B0E11", panel: "#181D24", border: "#2A323C",          // bg, surface, border
+  accent: "#E8A33D", accentDim: "#5A4426", onAccent: "#0B0E11", // amber: primary action; text on amber
   stage: "#2a2a1a", stageEdge: "#5a5a3a",
-  text: "#e8e8e8", textDim: "#9aa0a6",
-  grid: "#5a6a8a", selected: "#ffd700", hover: "#88aaff",
-  batten: "#4a6a8a",
+  text: "#EDEFF2", textDim: "#8A94A3",
+  grid: "#5B7A8C", selected: "#00A8E8", hover: "#5BC4EE",      // blueprint; signal blue = the live / selected item
+  batten: "#5B7A8C",
 };
 
 // Standard Rosco gel colors (abbreviated)
@@ -87,28 +89,28 @@ export const SET_DEFS = {
 
 export const TOOLS = [
   { id:"select",  icon:"↖",  label:"Select (S)"   },
-  { id:"pan",     icon:"✋", label:"Pan (P)"      },
+  { id:"pan",     icon:"", label:"Pan (P)"      },
   { id:"wall",    icon:"▬",  label:"Draw Wall (W)" },
   { id:"batten",  icon:"═",  label:"Add Batten (B)"},
   { id:"label",   icon:"T",  label:"Text Label (L)"},
-  { id:"pin",     icon:"💬", label:"Comment pin (C)" },
+  { id:"pin",     icon:"", label:"Comment pin (C)" },
   { id:"delete",  icon:"✕",  label:"Delete (D)"   },
 ];
 
 export const LAYERS = [
-  { id:"lighting",   label:"⚡ Lighting",   color:"#ffdd44" },
+  { id:"lighting",   label:"Lighting",   color:"#ffdd44" },
   { id:"battens",    label:"═  Battens",    color:"#4a6a8a" },
-  { id:"set",        label:"🏠 Set",         color:"#8b7355" },
-  { id:"softgoods",  label:"🎭 Soft Goods",  color:"#2a3a4a" },
-  { id:"practicals", label:"💡 Practicals",  color:"#ff8844" },
-  { id:"notes",      label:"📝 Notes",       color:"#88cc88" },
+  { id:"set",        label:"Set",         color:"#8b7355" },
+  { id:"softgoods",  label:"Soft Goods",  color:"#2a3a4a" },
+  { id:"practicals", label:"Practicals",  color:"#ff8844" },
+  { id:"notes",      label:"Notes",       color:"#88cc88" },
 ];
 
 // ── Venue configuration presets ───────────────────────────────────────────────
 export const VENUE_CONFIGS = {
   burgdorff: {
     label: "Burgdorff Center",
-    icon: "🏛",
+    icon: "",
     desc: "Burgdorff Center, Maplewood NJ — curved DS apron, recessed US center section",
     stageW: 35.5, stageH: 26.5,
     roomW: 36, roomH: 32,
@@ -130,7 +132,7 @@ export const VENUE_CONFIGS = {
   },
   proscenium: {
     label: "Proscenium",
-    icon: "🎭",
+    icon: "",
     desc: "Traditional stage with arch, audience faces one direction",
     stageW: 50, stageH: 30,
     roomW: 60, roomH: 70,
@@ -140,7 +142,7 @@ export const VENUE_CONFIGS = {
   },
   thrust: {
     label: "Thrust",
-    icon: "🔲",
+    icon: "",
     desc: "Stage extends into audience, seating on three sides",
     stageW: 30, stageH: 30,
     roomW: 60, roomH: 60,
@@ -192,7 +194,7 @@ export const VENUE_CONFIGS = {
   },
   courtyard: {
     label: "Courtyard / L-shaped",
-    icon: "🔳",
+    icon: "",
     desc: "Stage in a corner with audience wrapping two sides",
     stageW: 30, stageH: 30,
     roomW: 60, roomH: 60,
