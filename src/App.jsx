@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import ConstructionModal from "./ConstructionModal.jsx";
 import { loadShop, mergeShop } from "./construction.js";
+import logoHorizontal from "./assets/logos/lockup-horizontal-on-dark.svg";
 import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE, FONT_UI, FONT_DISPLAY } from "./constants.js";
 import { parseFtIn } from "./units.js";
 import { FixtureSVG, SetPieceSVG, BattenSVG, TextLabelSVG, PinSVG } from "./renderers.jsx";
@@ -811,7 +812,7 @@ export default function StageDesigner() {
           onMouseLeave={e=>{ e.currentTarget.style.color=COLORS.textDim; e.currentTarget.style.borderColor=COLORS.border; }}>
           ← Apps
         </a>
-        <span style={{ display:"flex", flexDirection:"column", lineHeight:1.1, marginRight:4 }}><span style={{ color:COLORS.accent, fontFamily:FONT_DISPLAY, fontSize:9, letterSpacing:"0.2em", fontWeight:500 }}>UPSTAGE SYSTEMS</span><span style={{ color:COLORS.text, fontFamily:FONT_DISPLAY, fontWeight:600, fontSize:16, letterSpacing:"0.02em" }}>STAGE DESIGNER</span></span>
+        <img src={logoHorizontal} alt="Upstage Systems" style={{ width:120, height:"auto", display:"block" }}/><span style={{ color:COLORS.text, fontFamily:FONT_DISPLAY, fontWeight:600, fontSize:15, letterSpacing:"0.02em", marginRight:4, paddingLeft:10, borderLeft:`1px solid ${COLORS.border}` }}>STAGE DESIGNER</span>
         {projectInfo.title && <span style={{ fontSize:11, color:COLORS.textDim }}>— {projectInfo.title}</span>}
         <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
         {TOOLS.map(t=>(

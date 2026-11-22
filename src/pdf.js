@@ -1,3 +1,4 @@
+import LOGO_SVG from "./assets/logos/lockup-horizontal-color.svg?raw";
 import { GRID, GEL_PRESETS, FIXTURE_DEFS, SET_DEFS } from "./constants.js";
 import { fmtTrim } from "./units.js";
 // pdf.js — print-to-PDF documents (instrument schedule and design plot). Pure string builders, no server.
@@ -176,7 +177,7 @@ export function generateInstrumentSchedulePDF(elements, stageW, stageH, projectI
   </table>` : ""}
 
   <footer>
-    <span>Upstage Systems · Stage Designer — Generated ${now}</span>
+    <span style="display:flex;align-items:center;gap:10px"><span style="width:96px;display:inline-block">${LOGO_SVG}</span>Stage Designer — Generated ${now}</span>
     <span>${projectInfo.title || "Untitled Production"} | ${projectInfo.venue || ""}</span>
   </footer>
 </div>
@@ -332,7 +333,7 @@ export function generateDesignPDF(svgEl, elements, stageW, stageH, venue, projec
 
   const footer = `
   <footer>
-    <span>Upstage Systems · Stage Designer — Generated ${now}</span>
+    <span style="display:flex;align-items:center;gap:10px"><span style="width:96px;display:inline-block">${LOGO_SVG}</span>Stage Designer — Generated ${now}</span>
     <span>${esc(projectInfo.title || "Untitled Production")} | ${esc(projectInfo.venue || "")}</span>
   </footer>`;
 
