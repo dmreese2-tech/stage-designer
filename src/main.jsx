@@ -1,3 +1,4 @@
+import './app.css'
 import '@fontsource/oswald/latin-500.css'
 import '@fontsource/oswald/latin-600.css'
 import '@fontsource/oswald/latin-700.css'

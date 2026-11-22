@@ -7,7 +7,7 @@ export const FONT_MONO = "'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo
 export const GRID = 20;
 
 export const COLORS = {
-  bg: "#0B0E11", panel: "#181D24", border: "#2A323C",          // bg, surface, border
+  bg: "#0B0E11", panel: "#181D24", raised: "#12161B", border: "#2A323C", borderStrong: "#3C4A58",          // bg, surface, border
   accent: "#E8A33D", accentDim: "#5A4426", onAccent: "#0B0E11", // amber: primary action; text on amber
   stage: "#2a2a1a", stageEdge: "#5a5a3a",
   text: "#EDEFF2", textDim: "#8A94A3",

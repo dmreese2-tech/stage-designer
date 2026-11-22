@@ -2,7 +2,9 @@ import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react"
 import ConstructionModal from "./ConstructionModal.jsx";
 import { loadShop, mergeShop } from "./construction.js";
 import logoHorizontal from "./assets/logos/lockup-horizontal-on-dark.svg";
-import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE, FONT_UI, FONT_DISPLAY } from "./constants.js";
+import logoMark from "./assets/logos/mark-on-dark.svg";
+import { Icon, useViewport, MenuButton, Sheet, AskText, ctl, ghost, primary } from "./layout.jsx";
+import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE, FONT_UI, FONT_DISPLAY, FONT_MONO } from "./constants.js";
 import { parseFtIn } from "./units.js";
 import { FixtureSVG, SetPieceSVG, BattenSVG, TextLabelSVG, PinSVG } from "./renderers.jsx";
 import { generateInstrumentSchedulePDF, generateDesignPDF } from "./pdf.js";
@@ -103,6 +105,11 @@ export default function StageDesigner() {
   const [stageW, setStageW] = useState(_auto?.stageW ?? 35.5); // Burgdorff: 35'6" wide
   const [stageH, setStageH] = useState(_auto?.stageH ?? 26.5); // Burgdorff: 26'6" deep
   const [sidebarTab, setSidebarTab] = useState("elements");
+  const vp = useViewport();                                  // "phone" | "tablet" | "desktop"
+  const [panelMode, setPanelMode] = useState(null);          // tablet / phone inspector sheet: null | "peek" | "open"
+  const [showLibrary, setShowLibrary] = useState(false);     // tablet / phone Add-to-plot sheet
+  const [ask, setAsk] = useState(null);                      // in-app text dialog, replaces window.prompt
+  const [showKeys, setShowKeys] = useState(false);
   const [hoverId, setHoverId] = useState(null);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState(null);
@@ -229,11 +236,12 @@ export default function StageDesigner() {
       if (pts.length < 2) { setCalib({ pts }); return; }
       setCalib(null);
       const d = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
-      const ans = window.prompt("Real distance between the two points? (e.g. 24'6\" or 24.5)", "");
-      const ft = parseFtIn(ans);
-      if (!ft || ft <= 0 || d < 1) return;
-      const k = (ft * GRID) / d, o = pts[0];
-      setUnderlay(u => u && ({ ...u, w:u.w*k, h:u.h*k, x:o.x - (o.x - u.x)*k, y:o.y - (o.y - u.y)*k }));
+      setAsk({ title:"Real distance between the two points? (e.g. 24'6\" or 24.5)", value:"", onOk:(ans)=>{
+        const ft = parseFtIn(ans);
+        if (!ft || ft <= 0 || d < 1) return;
+        const k = (ft * GRID) / d, o = pts[0];
+        setUnderlay(u => u && ({ ...u, w:u.w*k, h:u.h*k, x:o.x - (o.x - u.x)*k, y:o.y - (o.y - u.y)*k }));
+      }});
       return;
     }
     // one finger on empty canvas pans (Apple Pencil / mouse still draws a selection box)
@@ -259,26 +267,28 @@ export default function StageDesigner() {
       return;
     }
     if (tool === "pin") {
-      const text = window.prompt("Comment:", "");
-      if (text) {
-        const el = { id: uid(), type:"pin", category:"notes", layer:"notes", x: snap(pt.x), y: snap(pt.y), label: text, author: projectInfo.designer || "", created: Date.now(), resolved: false,
+      const px = snap(pt.x), py = snap(pt.y);
+      setAsk({ title:"Comment", value:"", onOk:(text)=>{
+        if (!text) return;
+        const el = { id: uid(), type:"pin", category:"notes", layer:"notes", x: px, y: py, label: text, author: projectInfo.designer || "", created: Date.now(), resolved: false,
           n: Math.max(0, ...elementsRef.current.filter(e=>e.type==="pin").map(e=>e.n||0)) + 1 };
         setElements(prev => [...prev, el]);
         setSelected(el.id); setSidebarTab("props"); setTool("select");
-      }
+      }, onCancel:()=>setTool("select") });
       return;
     }
     if (tool === "label") {
-      const text = window.prompt("Enter label text:", "Label");
-      if (text) {
+      const px = snap(pt.x), py = snap(pt.y);
+      setAsk({ title:"Label text", value:"Label", onOk:(text)=>{
+        if (!text) return;
         const el = {
           id: uid(), type:"textlabel", category:"notes", layer:"notes",
-          x: snap(pt.x), y: snap(pt.y), label: text, color: COLORS.text, fontSize: 14,
+          x: px, y: py, label: text, color: COLORS.text, fontSize: 14,
         };
         setElements(prev => [...prev, el]);
         setSelected(el.id);
         setTool("select");
-      }
+      }, onCancel:()=>setTool("select") });
       return;
     }
     if (tool === "select") {
@@ -789,100 +799,10 @@ export default function StageDesigner() {
   const battens = elements.filter(e=>e.type==="batten");
 
 
-  // ── render ────────────────────────────────────────────────────────────────
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:COLORS.bg, color:COLORS.text, fontFamily:FONT_UI, userSelect:"none", overflow:"hidden" }}>
 
-      {showProjectInfo && <ProjectInfoModal projectInfo={projectInfo} setProjectInfo={setProjectInfo} onClose={()=>setShowProjectInfo(false)}/>}
-      {showBuild && <ConstructionModal elements={elements} setElements={setElements} shop={shop} setShop={setShop} projectInfo={projectInfo} grid={GRID} selectedId={selected} onClose={()=>setShowBuild(false)}/>}
-      {show3D && <Suspense fallback={<div style={{ position:"fixed", inset:0, zIndex:1000, background:"#0B0E11", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
-        <View3D elements={elements} venue={venue} stageW={stageW} stageH={stageH} projectInfo={projectInfo} onClose={()=>setShow3D(false)}/>
-      </Suspense>}
-      {showNotes && <NotesModal elements={elements} setElements={setElements} onPick={(id)=>{ setSelected(id); setSidebarTab("props"); setShowNotes(false); }} onClose={()=>setShowNotes(false)}/>}
-      {showCompare && <CompareModal elements={elements} onClose={()=>setShowCompare(false)}/>}
-      {showLighting && <LightingModal stageW={stageW} stageH={stageH} elements={elements} setElements={setElements} projectInfo={projectInfo} onClose={()=>setShowLighting(false)}/>}
-      {showSchedule && <ScheduleModal projectInfo={projectInfo} elements={elements} stageW={stageW} stageH={stageH} lightingEls={lightingEls} battens={battens} setSelected={setSelected} setSidebarTab={setSidebarTab} onClose={()=>setShowSchedule(false)}/>}
-      {showVenueEditor && <VenueEditorModal venue={venue} stageW={stageW} stageH={stageH} setStageW={setStageW} setStageH={setStageH} onClose={()=>setShowVenueEditor(false)} onApply={(d)=>{setVenue(d); setShowVenueEditor(false);}}/>}
-
-      {/* ── top bar ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", background:COLORS.panel, borderBottom:`1px solid ${COLORS.border}`, flexShrink:0, flexWrap:"wrap" }}>
-        <a href="https://apps.upstage.systems" title="Back to Upstage Systems apps"
-          style={{ display:"flex", alignItems:"center", gap:4, color:COLORS.textDim, textDecoration:"none", fontSize:11, padding:"4px 8px", border:`1px solid ${COLORS.border}`, borderRadius:5, marginRight:2 }}
-          onMouseEnter={e=>{ e.currentTarget.style.color=COLORS.accent; e.currentTarget.style.borderColor=COLORS.accent; }}
-          onMouseLeave={e=>{ e.currentTarget.style.color=COLORS.textDim; e.currentTarget.style.borderColor=COLORS.border; }}>
-          ← Apps
-        </a>
-        <img src={logoHorizontal} alt="Upstage Systems" style={{ width:120, height:"auto", display:"block" }}/><span style={{ color:COLORS.text, fontFamily:FONT_DISPLAY, fontWeight:600, fontSize:15, letterSpacing:"0.02em", marginRight:4, paddingLeft:10, borderLeft:`1px solid ${COLORS.border}` }}>STAGE DESIGNER</span>
-        {projectInfo.title && <span style={{ fontSize:11, color:COLORS.textDim }}>— {projectInfo.title}</span>}
-        <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
-        {TOOLS.map(t=>(
-          <Btn key={t.id} active={tool===t.id} onClick={()=>setTool(t.id)} title={t.label}>{t.label.split(" ")[0]}</Btn>
-        ))}
-        <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
-        <Btn onClick={undo} title="Undo (Ctrl/Cmd+Z)" disabled={!histCount.u}>↶ Undo</Btn>
-        <Btn onClick={redo} title="Redo (Ctrl/Cmd+Shift+Z)" disabled={!histCount.r}>↷ Redo</Btn>
-        <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
-        <Btn onClick={copySelected} title="Copy (Ctrl/Cmd+C)">⎘ Copy</Btn>
-        <Btn onClick={pasteClipboard} title="Paste (Ctrl/Cmd+V)">Paste</Btn>
-        <div style={{ width:1, height:18, background:COLORS.border, margin:"0 4px" }}/>
-        <label title="Snap step for placing and dragging" style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, color:COLORS.textDim }}>
-          Snap
-          <select value={snapStep} onChange={e=>setSnapStep(+e.target.value)}
-            style={{ background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 4px", fontSize:11, fontFamily:"inherit" }}>
-            <option value={GRID}>1 ft</option><option value={GRID/2}>6 in</option><option value={GRID/12}>1 in</option><option value={0}>Off</option>
-          </select>
-        </label>
-        <Btn onClick={()=>setShowGrid(g=>!g)} active={showGrid}>Grid</Btn>
-        <Btn onClick={()=>setShowMeasure(m=>!m)} active={showMeasure}>Scale</Btn>
-        <div style={{ flex:1 }}/>
-        <span style={{ fontSize:10, color:COLORS.textDim }}>{Math.round(zoom*100)}%</span>
-        <Btn onClick={()=>{setZoom(1);setPan({x: 80 + (venue.stageOffX||0)*GRID, y: 60 + (venue.stageOffY||0)*GRID});}}>⌂ Reset</Btn>
-        <Btn onClick={()=>setShowVenueEditor(true)}>Venue</Btn>
-        <Btn onClick={()=>setShowProjectInfo(true)}>Project</Btn>
-        <Btn onClick={()=>setShowSchedule(true)} active={showSchedule}>Schedule</Btn>
-        <Btn onClick={()=>setShowBuild(true)} title="Cut sheets, cut list and buy list for the set pieces">Build</Btn>
-        <Btn onClick={()=>setShowLighting(true)} title="Patch, load, power, colour cuts and equipment key">Paperwork</Btn>
-        <Btn onClick={()=>setShow3D(true)} title="3D view with beams, sightlines and glTF export">3D</Btn>
-        <Btn onClick={()=>generateInstrumentSchedulePDF(elements,stageW,stageH,projectInfo)} title="Print instrument/batten schedule as PDF">Sched PDF</Btn>
-        <Btn onClick={()=>generateDesignPDF(svgRef.current,elements,stageW,stageH,venue,projectInfo,{numberPieces})} title="Print the stage/lighting/set design layout as PDF">Plot PDF</Btn>
-        <label title="Print each set piece's schedule number on the plot PDF" style={{ display:"flex", alignItems:"center", gap:3, fontSize:11, color:COLORS.textDim, cursor:"pointer", userSelect:"none" }}>
-          <input type="checkbox" checked={numberPieces} onChange={e=>setNumberPieces(e.target.checked)}/> #
-        </label>
-        <Btn onClick={exportSVG}>⬇ SVG</Btn>
-        <Btn onClick={exportJSON}>⬇ JSON</Btn>
-        <Btn onClick={()=>setShowNotes(true)} title="List of comment pins, with resolve ticks and a CSV export">Notes{elements.filter(e=>e.type==="pin"&&!e.resolved).length ? ` (${elements.filter(e=>e.type==="pin"&&!e.resolved).length})` : ""}</Btn>
-        <Btn onClick={()=>setShowCompare(true)} title="Compare with an earlier saved JSON file">⇄ Compare</Btn>
-        <Btn onClick={copyShareLink} title="Copy a link that opens this plan for someone else">Share</Btn>
-        <Btn onClick={()=>fileInputRef.current?.click()}>⬆ Import</Btn>
-        <Btn onClick={newProject} title="Clear the plan and start again">New</Btn>
-        <span title={saveNote || "Your plan is saved in this browser automatically"} style={{ fontSize:10, color:saveNote?COLORS.accent:COLORS.textDim, whiteSpace:"nowrap" }}>
-          {saveNote ? "⚠ " + saveNote : savedAt ? `● Saved ${new Date(savedAt).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })}` : ""}
-        </span>
-        <input ref={fileInputRef} type="file" accept=".json" onChange={importJSON} style={{ display:"none" }}/>
-      </div>
-
-      {sharedMode && (
-        <div style={{ background:"#3a2a10", borderBottom:`1px solid ${COLORS.border}`, color:"#ffcc66", fontSize:11, padding:"5px 12px", display:"flex", gap:10, alignItems:"center" }}>
-          <span>Opened from a share link. Changes you make here are not saved, and your own saved plan is untouched.</span>
-          <Btn onClick={leaveShared} title="Keep working on this plan and save it in this browser (replaces your saved plan here)">Keep a copy in this browser</Btn>
-        </div>
-      )}
-      <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
-
-        {/* ── left sidebar ── */}
-        <div style={{ width:215, background:COLORS.panel, borderRight:`1px solid ${COLORS.border}`, display:"flex", flexDirection:"column", flexShrink:0, overflow:"hidden" }}>
-          {/* tabs */}
-          <div style={{ display:"flex", borderBottom:`1px solid ${COLORS.border}` }}>
-            {[["elements","Elems"],["layers","Layers"],["props","Props"]].map(([id,lbl])=>(
-              <button key={id} onClick={()=>setSidebarTab(id)}
-                style={{ flex:1, background:sidebarTab===id?COLORS.bg:"transparent", color:sidebarTab===id?COLORS.accent:COLORS.textDim, border:"none", padding:"7px 0", cursor:"pointer", fontSize:10, fontFamily:"inherit", borderBottom:sidebarTab===id?`2px solid ${COLORS.accent}`:"2px solid transparent" }}>
-                {lbl}
-              </button>
-            ))}
-          </div>
-
-          {sidebarTab === "elements" && (
-            <div style={{ flex:1, overflowY:"auto", padding:8 }}>
+  // ── panel content, shared by the desktop side panels and the tablet / phone sheets ──
+  const libraryUI = (
+<div style={{ flex:1, overflowY:"auto", padding:8 }}>
               <div style={{ display:"flex", gap:4, marginBottom:8 }}>
                 {[["set","Set"],["lighting","Lighting"],["batten","Battens"]].map(([id,lbl])=>(
                   <button key={id} onClick={()=>setActiveCat(id)}
@@ -909,19 +829,19 @@ export default function StageDesigner() {
                     const cy=(svgRef.current?.clientHeight/2-pan.y)/zoom;
                     if (activeCat==="batten") placeBatten(snap(cx),snap(cy));
                     else placeElement(key,activeCat,def,snap(cx),snap(cy));
+                    if (vp!=="desktop") setShowLibrary(false);
                   }}
-                  style={{ display:"flex", alignItems:"center", gap:7, padding:"5px 7px", marginBottom:3, background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", transition:"border-color 0.1s" }}
+                  style={{ display:"flex", alignItems:"center", gap:7, padding:"11px 10px", marginBottom:4, minHeight:44, background:COLORS.bg, border:`1px solid ${COLORS.border}`, borderRadius:4, cursor:"pointer", transition:"border-color 0.1s" }}
                   onMouseEnter={e=>e.currentTarget.style.borderColor=COLORS.accent}
                   onMouseLeave={e=>e.currentTarget.style.borderColor=COLORS.border}>
-                  <div style={{ width:activeCat==="batten"?11:11, height:activeCat==="batten"?3:11, borderRadius:activeCat==="lighting"?"50%":2, background:def.color, flexShrink:0 }}/>
-                  <span style={{ fontSize:11, color:COLORS.text }}>{def.label}</span>
+                  <div style={{ width:14, height:activeCat==="batten"?4:14, borderRadius:activeCat==="lighting"?"50%":2, background:def.color, flexShrink:0 }}/>
+                  <span style={{ fontSize:13, color:COLORS.text }}>{def.label}</span>
                 </div>
               ))}
             </div>
-          )}
-
-          {sidebarTab === "layers" && (
-            <div style={{ flex:1, overflowY:"auto", padding:10 }}>
+  );
+  const layersUI = (
+<div style={{ flex:1, overflowY:"auto", padding:10 }}>
               <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:8 }}>LAYER VISIBILITY</div>
               {LAYERS.map(l=>(
                 <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${COLORS.border}` }}>
@@ -960,15 +880,182 @@ export default function StageDesigner() {
                 ) : null;
               })}
             </div>
-          )}
-
-          {sidebarTab === "props" && multiSel.length > 1 && (
+  );
+  const propsUI = (<>
+{multiSel.length > 1 && (
             <GroupPanel ids={multiSel} elements={elements} moveZ={moveZ}
               onCopy={copySelected} onDuplicate={duplicateSelected} onClear={()=>setSelected(null)}
               onAlign={alignSel} onDistribute={distributeSel} onDelete={()=>{ setElements(prev=>prev.filter(x=>!multiSel.includes(x.id))); setSelected(null); }}/>
           )}
-          {sidebarTab === "props" && multiSel.length <= 1 && <PropsPanel allEls={elements} selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard} moveZ={moveZ}/>}
+          {multiSel.length <= 1 && <PropsPanel allEls={elements} selEl={selEl} updateEl={updateEl} battens={battens} setElements={setElements} setSelected={setSelected} selected={selected} copySelected={copySelected} pasteClipboard={pasteClipboard} duplicateSelected={duplicateSelected} hasClipboard={!!clipboard} moveZ={moveZ}/>}
+  </>);
+  const channelsUI = lightingEls.length === 0 && battens.length === 0
+    ? <div style={{ padding:16, fontSize:13, color:COLORS.textDim }}>No fixtures or battens yet. Add lighting from Add to plot.</div>
+    : (
+<div>
+            <div style={{ padding:"8px 10px 4px", fontSize:9, color:COLORS.accent, letterSpacing:1, borderBottom:`1px solid ${COLORS.border}` }}>
+              CHANNELS ({lightingEls.length})
+            </div>
+            {lightingEls.map(el=>{
+              const gel = GEL_PRESETS.find(g=>g.code===el.gelCode)||{hex:"#888"};
+              return (
+                <div key={el.id} onClick={()=>{setSelected(el.id);setSidebarTab("props");}}
+                  style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderBottom:`1px solid ${COLORS.border}`, cursor:"pointer", background:selIds.includes(el.id)?COLORS.bg:"transparent" }}
+                  onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
+                  onMouseLeave={e=>e.currentTarget.style.background=selIds.includes(el.id)?COLORS.bg:"transparent"}>
+                  <div style={{ width:10, height:10, borderRadius:"50%", background:gel.hex, border:"1px solid #555", flexShrink:0 }}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:11, color:COLORS.accent, fontWeight:"bold" }}>Ch {el.channel}</div>
+                    <div style={{ fontSize:9, color:COLORS.textDim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{el.label}</div>
+                    {el.gelCode && el.gelCode !== "Open" && <div style={{ fontSize:8, color:COLORS.textDim }}>{el.gelCode}</div>}
+                  </div>
+                </div>
+              );
+            })}
+            {battens.length > 0 && (
+              <>
+                <div style={{ padding:"8px 10px 4px", fontSize:9, color:COLORS.batten, letterSpacing:1, borderBottom:`1px solid ${COLORS.border}`, marginTop:4 }}>
+                  BATTENS ({battens.length})
+                </div>
+                {battens.map(b=>(
+                  <div key={b.id} onClick={()=>{setSelected(b.id);setSidebarTab("props");}}
+                    style={{ padding:"5px 10px", borderBottom:`1px solid ${COLORS.border}`, cursor:"pointer", background:selIds.includes(b.id)?COLORS.bg:"transparent" }}
+                    onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
+                    onMouseLeave={e=>e.currentTarget.style.background=selIds.includes(b.id)?COLORS.bg:"transparent"}>
+                    <div style={{ fontSize:10, color:COLORS.batten }}>{b.label}</div>
+                    <div style={{ fontSize:8, color:COLORS.textDim }}>{((b.x2-b.x1)/GRID).toFixed(1)}' wide</div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+    );
+
+  // ── responsive shell ──────────────────────────────────────────────────────
+  const inspTab = sidebarTab === "elements" ? "props" : sidebarTab;
+  const openPins = elements.filter(e=>e.type==="pin"&&!e.resolved).length;
+  useEffect(() => { if (vp !== "desktop" && selected) setPanelMode(m => m || "peek"); }, [selected, vp]);
+  const resetView = () => {
+    const r = vp !== "desktop" && svgRef.current ? svgRef.current.getBoundingClientRect() : null;
+    if (r && r.width > 0) {                       // fit the stage in the window on tablets and phones
+      const z = Math.min(1.2, (r.width - 56) / (stageW * GRID), (r.height - 150) / ((stageH + 7) * GRID));
+      setZoom(z); setPan({ x: (r.width - stageW * GRID * z) / 2 + 12, y: Math.max(52, (r.height - (stageH + 4) * GRID * z) / 2) });
+      return;
+    }
+    setZoom(1); setPan({ x: 80 + (venue.stageOffX||0)*GRID, y: 60 + (venue.stageOffY||0)*GRID });
+  };
+  useEffect(() => { if (vp !== "desktop") { const t = setTimeout(resetView, 60); return () => clearTimeout(t); } }, [vp]);
+  const zoomBy = (f) => setZoom(z => Math.min(4, Math.max(0.15, z * f)));
+  const closeAll = () => { setShowBuild(false); setShow3D(false); setShowNotes(false); setShowLighting(false); };
+  const workspaces = [
+    { id:"plan",  label:"Plan",  icon:"plan",  on:true,  go: closeAll },
+    { id:"3d",    label:"3D",    icon:"cube",  on:false, go:()=>setShow3D(true) },
+    { id:"paper", label:"Paperwork", icon:"paper", on:false, go:()=>setShowLighting(true) },
+    { id:"build", label:"Build", icon:"build", on:false, go:()=>setShowBuild(true) },
+    { id:"notes", label:openPins?`Notes (${openPins})`:"Notes", icon:"notes", on:false, go:()=>setShowNotes(true) },
+  ];
+  const snapLabel = snapStep === GRID ? "1 ft" : snapStep === GRID/2 ? "6 in" : snapStep === GRID/12 ? "1 in" : "Off";
+  const cycleSnap = () => setSnapStep(snapStep === GRID ? GRID/2 : snapStep === GRID/2 ? GRID/12 : snapStep === GRID/12 ? 0 : GRID);
+  const exportItems = [
+    { label:"Plot PDF", onClick:()=>generateDesignPDF(svgRef.current,elements,stageW,stageH,venue,projectInfo,{numberPieces}) },
+    { label:"Schedule PDF", onClick:()=>generateInstrumentSchedulePDF(elements,stageW,stageH,projectInfo) },
+    { label:"SVG image", onClick:exportSVG },
+    { label:"JSON file", onClick:exportJSON },
+    { sep:true },
+    { label:"Import JSON", onClick:()=>fileInputRef.current?.click() },
+    { label:"Compare with earlier JSON", onClick:()=>setShowCompare(true) },
+    { label:"Number pieces on plot PDF", checked:numberPieces, onClick:()=>setNumberPieces(v=>!v) },
+  ];
+  const moreItems = [
+    { label:"Venue editor", onClick:()=>setShowVenueEditor(true) },
+    { label:"Project info", onClick:()=>setShowProjectInfo(true) },
+    { label:"Instrument schedule", onClick:()=>setShowSchedule(true) },
+    { label:"Reset view", onClick:resetView },
+    { sep:true },
+    ...(vp === "phone" ? [
+      { label:"Grid", checked:showGrid, onClick:()=>setShowGrid(g=>!g) },
+      { label:"Scale", checked:showMeasure, onClick:()=>setShowMeasure(m=>!m) },
+      { label:"Snap", hint:snapLabel, onClick:cycleSnap },
+      { sep:true } ] : []),
+    ...(vp !== "desktop" ? [ ...exportItems, { sep:true } ] : []),
+    { label:"New project", danger:true, onClick:newProject },
+  ];
+  const SHORT = { select:"Select", pan:"Pan", wall:"Wall", batten:"Batten", label:"Text", pin:"Pin", delete:"Delete" };
+  const toolBtn = (t, mode) => {
+    const on = tool === t.id;
+    const st = mode === "strip" ? ctl(on, { flexDirection:"column", justifyContent:"center", gap:2, height:48, minWidth:64, padding:"0 10px", fontSize:11, border:`1px solid ${on?COLORS.accent:COLORS.border}` })
+      : mode === "float" ? ctl(on, { width:52, height:52, padding:0, justifyContent:"center" })
+      : ctl(on, { width:56, height:56, padding:0, flexDirection:"column", justifyContent:"center", gap:4, fontSize:11 });
+    return (<button key={t.id} aria-pressed={on} aria-label={t.label} title={t.label} onClick={()=>setTool(t.id)} style={st}>
+      <Icon name={t.id} size={22}/>{mode !== "float" && <span>{SHORT[t.id]}</span>}</button>);
+  };
+  const iconBtn = (name, label, onClick, disabled) => (
+    <button aria-label={label} title={label} disabled={disabled} onClick={onClick} style={ctl(false, { width:44, padding:0, justifyContent:"center", opacity:disabled?0.35:1, cursor:disabled?"default":"pointer" })}><Icon name={name} size={22}/></button>);
+  const inspTabs = [["props","Properties"],["layers","Layers"],["channels",`Channels (${lightingEls.length})`]];
+  const inspBody = inspTab === "layers" ? layersUI : inspTab === "channels" ? channelsUI : propsUI;
+  const zoomBox = (vertical) => (
+    <div style={{ display:"flex", flexDirection:vertical?"column":"row", alignItems:"center", background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:4 }}>
+      <button aria-label="Zoom out" onClick={()=>zoomBy(0.8)} style={ctl(false,{width:44,padding:0,justifyContent:"center"})}><Icon name="minus" size={18} sw={1.8}/></button>
+      {!vertical && <span style={{ width:56, textAlign:"center", fontFamily:FONT_MONO, fontSize:13 }}>{Math.round(zoom*100)}%</span>}
+      <button aria-label="Zoom in" onClick={()=>zoomBy(1.25)} style={ctl(false,{width:44,padding:0,justifyContent:"center"})}><Icon name="plus" size={18} sw={1.8}/></button>
+      <button aria-label="Fit to screen" onClick={resetView} style={ctl(false,{width:44,padding:0,justifyContent:"center"})}><Icon name="fit" size={18} sw={1.8}/></button>
+    </div>);
+  const savedText = saveNote ? "Warning: " + saveNote : savedAt ? `Saved ${new Date(savedAt).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })}` : "";
+
+  // ── render ────────────────────────────────────────────────────────────────
+  return (
+    <div className="sd-root" style={{ display:"flex", flexDirection:"column", background:COLORS.bg, color:COLORS.text, fontFamily:FONT_UI, overflow:"hidden" }}>
+
+      {showProjectInfo && <ProjectInfoModal projectInfo={projectInfo} setProjectInfo={setProjectInfo} onClose={()=>setShowProjectInfo(false)}/>}
+      {showBuild && <ConstructionModal elements={elements} setElements={setElements} shop={shop} setShop={setShop} projectInfo={projectInfo} grid={GRID} selectedId={selected} onClose={()=>setShowBuild(false)}/>}
+      {show3D && <Suspense fallback={<div style={{ position:"fixed", inset:0, zIndex:1000, background:"#0B0E11", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
+        <View3D elements={elements} venue={venue} stageW={stageW} stageH={stageH} projectInfo={projectInfo} onClose={()=>setShow3D(false)}/>
+      </Suspense>}
+      {showNotes && <NotesModal elements={elements} setElements={setElements} onPick={(id)=>{ setSelected(id); setSidebarTab("props"); setShowNotes(false); }} onClose={()=>setShowNotes(false)}/>}
+      {showCompare && <CompareModal elements={elements} onClose={()=>setShowCompare(false)}/>}
+      {showLighting && <LightingModal stageW={stageW} stageH={stageH} elements={elements} setElements={setElements} projectInfo={projectInfo} onClose={()=>setShowLighting(false)}/>}
+      {showSchedule && <ScheduleModal projectInfo={projectInfo} elements={elements} stageW={stageW} stageH={stageH} lightingEls={lightingEls} battens={battens} setSelected={setSelected} setSidebarTab={setSidebarTab} onClose={()=>setShowSchedule(false)}/>}
+      {showVenueEditor && <VenueEditorModal venue={venue} stageW={stageW} stageH={stageH} setStageW={setStageW} setStageH={setStageH} onClose={()=>setShowVenueEditor(false)} onApply={(d)=>{setVenue(d); setShowVenueEditor(false);}}/>}
+
+      {/* ── top bar ── */}
+      <div style={{ display:"flex", alignItems:"center", gap:vp==="phone"?8:12, padding:vp==="phone"?"0 8px":"0 12px", minHeight:vp==="desktop"?52:56, background:COLORS.raised, borderBottom:`1px solid ${COLORS.border}`, flexShrink:0 }}>
+        {vp === "desktop" && (
+          <a href="https://apps.upstage.systems" title="Back to Upstage Systems apps" style={{ ...ghost({ height:36, padding:"0 10px", border:`1px solid ${COLORS.border}`, color:COLORS.textDim, textDecoration:"none", fontSize:12 }) }}>Apps</a>)}
+        <img src={vp==="desktop" ? logoHorizontal : logoMark} alt="Upstage Systems" style={{ width:vp==="desktop"?120:44, height:"auto", display:"block", flex:"none" }}/>
+        <div style={{ display:"flex", flexDirection:"column", lineHeight:1.2, minWidth:0, flex:vp==="desktop"?"none":1 }}>
+          <span style={{ fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.04em", fontWeight:600, fontSize:14, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{projectInfo.title || "Stage Designer"}</span>
+          <span title={saveNote || "Your plan is saved in this browser automatically"} style={{ fontSize:12, color:saveNote?COLORS.accent:COLORS.textDim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{projectInfo.title ? "Stage Designer" : ""}{projectInfo.title && savedText ? " · " : ""}{savedText}</span>
         </div>
+        {vp !== "phone" && (
+          <div role="tablist" aria-label="Workspaces" className="sd-scroll-x" style={{ flex:1, minWidth:0, display:"flex", justifyContent:vp==="desktop"?"center":"flex-start", gap:4 }}>
+            {workspaces.map(w => (
+              <button key={w.id} role="tab" aria-selected={w.on} aria-label={w.label} onClick={w.go} style={ctl(w.on, { padding:"0 12px", fontSize:13 })}>
+                <Icon name={w.icon} size={20}/>{(vp==="desktop" || w.on) && <span>{w.label}</span>}</button>))}
+          </div>)}
+        {vp === "desktop" && <>{iconBtn("undo","Undo (Ctrl/Cmd+Z)",undo,!histCount.u)}{iconBtn("redo","Redo (Ctrl/Cmd+Shift+Z)",redo,!histCount.r)}</>}
+        {vp === "desktop" && <MenuButton label="Export" items={exportItems}/>}
+        <button onClick={copyShareLink} title="Copy a link that opens this plan for someone else" aria-label="Share" style={primary(vp==="phone"?{ width:44, padding:0, justifyContent:"center" }:{})}>
+          <Icon name="share" size={18} sw={1.8}/>{vp !== "phone" && <span>Share</span>}</button>
+        <MenuButton iconOnly icon="more" ariaLabel="More" items={moreItems}/>
+        <input ref={fileInputRef} type="file" accept=".json" onChange={importJSON} style={{ display:"none" }}/>
+      </div>
+
+      {sharedMode && (
+        <div style={{ background:"#3a2a10", borderBottom:`1px solid ${COLORS.border}`, color:"#ffcc66", fontSize:11, padding:"5px 12px", display:"flex", gap:10, alignItems:"center" }}>
+          <span>Opened from a share link. Changes you make here are not saved, and your own saved plan is untouched.</span>
+          <Btn onClick={leaveShared} title="Keep working on this plan and save it in this browser (replaces your saved plan here)">Keep a copy in this browser</Btn>
+        </div>
+      )}
+      <div style={{ display:"flex", flex:1, minHeight:0, overflow:"hidden" }}>
+        {vp === "desktop" && (
+          <div role="toolbar" aria-label="Tools" style={{ width:68, flexShrink:0, background:COLORS.raised, borderRight:`1px solid ${COLORS.border}`, display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"8px 0" }}>
+            {TOOLS.map(t => toolBtn(t, "rail"))}
+          </div>)}
+        {vp === "desktop" && (
+          <div style={{ width:248, flexShrink:0, background:COLORS.raised, borderRight:`1px solid ${COLORS.border}`, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{ padding:"14px 12px 6px", fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.12em", fontSize:12, color:COLORS.textDim }}>Add to plot</div>
+            {libraryUI}
+          </div>)}
 
         {/* ── canvas ── */}
         <div style={{ flex:1, position:"relative", overflow:"hidden", background:COLORS.bg }}
@@ -1235,57 +1322,81 @@ export default function StageDesigner() {
               </>}
             </g>
           </svg>
-          {/* Hints */}
-          <div style={{ position:"absolute", bottom:8, left:8, fontSize:9, color:COLORS.textDim, background:"rgba(22,33,62,0.9)", padding:"4px 8px", borderRadius:4, lineHeight:1.8 }}>
-            S=Select · W=Wall · B=Batten · D=Delete · P=Pan · L=Label · Drag=Box select · Shift+click=Add · Ctrl/⌘+A=All · Del=Remove · Arrows=Nudge · [ ]=Send Back/Forward · Scroll=Zoom
-          </div>
-          {/* Zoom level */}
-          <div style={{ position:"absolute", bottom:8, right:8, fontSize:9, color:COLORS.textDim, background:"rgba(22,33,62,0.9)", padding:"4px 8px", borderRadius:4 }}>
-            {Math.round(zoom*100)}% · {stageW}'×{stageH}' stage
-          </div>
+          {/* selection actions */}
+          {selIds.length > 0 && tool === "select" && (
+            <div role="toolbar" aria-label="Selection actions" style={{ position:"absolute", top:8, left:"50%", transform:"translateX(-50%)", zIndex:30, display:"flex", gap:2, padding:4, background:COLORS.panel, border:`1px solid ${COLORS.borderStrong}`, borderRadius:8, maxWidth:"calc(100% - 140px)" }}>
+              <button onClick={duplicateSelected} style={ctl(false,{padding:"0 12px",fontSize:12})}><Icon name="copy" size={18}/>Duplicate</button>
+              {vp !== "phone" && <button onClick={copySelected} style={ctl(false,{padding:"0 12px",fontSize:12})}>Copy</button>}
+              {vp !== "phone" && <button onClick={pasteClipboard} disabled={!clipboard||!clipboard.length} style={ctl(false,{padding:"0 12px",fontSize:12,opacity:(!clipboard||!clipboard.length)?0.4:1})}>Paste</button>}
+              <button onClick={()=>{ setElements(prev=>prev.filter(x=>!selIds.includes(x.id))); setSelected(null); }} style={ctl(false,{padding:"0 12px",fontSize:12,color:"#E5534B"})}><Icon name="delete" size={18} sw={1.8}/>Delete</button>
+            </div>)}
+          {/* zoom */}
+          <div style={vp === "desktop" ? { position:"absolute", right:16, bottom:16, zIndex:30 } : { position:"absolute", right:8, top:8, zIndex:30 }}>{zoomBox(vp === "phone")}</div>
+          {/* tablet: floating tools and Add button */}
+          {vp === "tablet" && (
+            <div role="toolbar" aria-label="Tools" style={{ position:"absolute", left:12, top:12, zIndex:30, display:"flex", flexDirection:"column", gap:2, padding:4, background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8 }}>
+              {iconBtn("undo","Undo",undo,!histCount.u)}{iconBtn("redo","Redo",redo,!histCount.r)}
+              {TOOLS.map(t => toolBtn(t, "float"))}
+              <button aria-label="Panels" title="Properties, layers and channels" onClick={()=>setPanelMode(m=>m?null:"peek")} style={ctl(!!panelMode,{width:52,height:52,padding:0,justifyContent:"center"})}><Icon name="layers" size={22}/></button>
+            </div>)}
+          {vp === "tablet" && !showLibrary && !panelMode && (
+            <button onClick={()=>setShowLibrary(true)} style={ghost({ position:"absolute", left:12, bottom:12, zIndex:30, height:48, background:COLORS.panel })}><Icon name="plus" size={20} sw={1.8}/><span>Add to plot</span></button>)}
+          {/* shortcuts popover (desktop) */}
+          {vp === "desktop" && showKeys && (
+            <div role="dialog" aria-label="Keyboard shortcuts" style={{ position:"absolute", right:16, bottom:76, zIndex:35, width:300, background:COLORS.panel, border:`1px solid ${COLORS.borderStrong}`, borderRadius:8, padding:12, fontSize:13, lineHeight:1.8, color:COLORS.text }}>
+              {[["S","Select"],["W","Draw wall"],["B","Batten"],["D","Delete tool"],["P","Pan"],["L","Text label"],["C","Comment pin"],["Shift+click","Add to selection"],["Ctrl/Cmd+A","Select all"],["Ctrl/Cmd+C / V / D","Copy, paste, duplicate"],["Del","Remove"],["Arrows","Nudge"],["[ ]","Send back / forward"],["Scroll","Zoom"]].map(([k,v])=>(
+                <div key={k} style={{ display:"flex", justifyContent:"space-between", gap:12 }}><span style={{ fontFamily:FONT_MONO, fontSize:12, color:COLORS.accent }}>{k}</span><span>{v}</span></div>))}
+            </div>)}
+          {/* sheets: tablet and phone */}
+          {vp !== "desktop" && showLibrary && (
+            <Sheet mode="open" setMode={()=>{}} onClose={()=>setShowLibrary(false)} title="Add to plot">{libraryUI}</Sheet>)}
+          {vp !== "desktop" && !showLibrary && panelMode && (
+            <Sheet mode={panelMode} setMode={setPanelMode} onClose={()=>setPanelMode(null)} tabs={inspTabs} tab={inspTab} setTab={setSidebarTab}>{inspBody}</Sheet>)}
         </div>
 
-        {/* ── right rail: channel list ── */}
-        {lightingEls.length > 0 && (
-          <div style={{ width:155, background:COLORS.panel, borderLeft:`1px solid ${COLORS.border}`, overflowY:"auto", flexShrink:0 }}>
-            <div style={{ padding:"8px 10px 4px", fontSize:9, color:COLORS.accent, letterSpacing:1, borderBottom:`1px solid ${COLORS.border}` }}>
-              CHANNELS ({lightingEls.length})
+        {vp === "desktop" && (
+          <div style={{ width:304, flexShrink:0, background:COLORS.raised, borderLeft:`1px solid ${COLORS.border}`, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div role="tablist" style={{ display:"flex", borderBottom:`1px solid ${COLORS.border}` }}>
+              {inspTabs.map(([id,lbl]) => (
+                <button key={id} role="tab" aria-selected={inspTab===id} onClick={()=>setSidebarTab(id)}
+                  style={{ flex:1, height:44, background:"transparent", border:"none", borderBottom:`2px solid ${inspTab===id?COLORS.accent:"transparent"}`, color:inspTab===id?COLORS.text:COLORS.textDim, cursor:"pointer", fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:500, fontSize:12 }}>{lbl}</button>))}
             </div>
-            {lightingEls.map(el=>{
-              const gel = GEL_PRESETS.find(g=>g.code===el.gelCode)||{hex:"#888"};
-              return (
-                <div key={el.id} onClick={()=>{setSelected(el.id);setSidebarTab("props");}}
-                  style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 10px", borderBottom:`1px solid ${COLORS.border}`, cursor:"pointer", background:selIds.includes(el.id)?COLORS.bg:"transparent" }}
-                  onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
-                  onMouseLeave={e=>e.currentTarget.style.background=selIds.includes(el.id)?COLORS.bg:"transparent"}>
-                  <div style={{ width:10, height:10, borderRadius:"50%", background:gel.hex, border:"1px solid #555", flexShrink:0 }}/>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:11, color:COLORS.accent, fontWeight:"bold" }}>Ch {el.channel}</div>
-                    <div style={{ fontSize:9, color:COLORS.textDim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{el.label}</div>
-                    {el.gelCode && el.gelCode !== "Open" && <div style={{ fontSize:8, color:COLORS.textDim }}>{el.gelCode}</div>}
-                  </div>
-                </div>
-              );
-            })}
-            {battens.length > 0 && (
-              <>
-                <div style={{ padding:"8px 10px 4px", fontSize:9, color:COLORS.batten, letterSpacing:1, borderBottom:`1px solid ${COLORS.border}`, marginTop:4 }}>
-                  BATTENS ({battens.length})
-                </div>
-                {battens.map(b=>(
-                  <div key={b.id} onClick={()=>{setSelected(b.id);setSidebarTab("props");}}
-                    style={{ padding:"5px 10px", borderBottom:`1px solid ${COLORS.border}`, cursor:"pointer", background:selIds.includes(b.id)?COLORS.bg:"transparent" }}
-                    onMouseEnter={e=>e.currentTarget.style.background=COLORS.bg}
-                    onMouseLeave={e=>e.currentTarget.style.background=selIds.includes(b.id)?COLORS.bg:"transparent"}>
-                    <div style={{ fontSize:10, color:COLORS.batten }}>{b.label}</div>
-                    <div style={{ fontSize:8, color:COLORS.textDim }}>{((b.x2-b.x1)/GRID).toFixed(1)}' wide</div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
+            <div style={{ flex:1, minHeight:0, overflowY:"auto" }}>{inspBody}</div>
+          </div>)}
       </div>
+
+      {/* phone: tool strip and workspace tab bar */}
+      {vp === "phone" && (
+        <div role="toolbar" aria-label="Tools" className="sd-scroll-x" style={{ flexShrink:0, display:"flex", gap:6, padding:8, background:COLORS.raised, borderTop:`1px solid ${COLORS.border}` }}>
+          {iconBtn("undo","Undo",undo,!histCount.u)}{iconBtn("redo","Redo",redo,!histCount.r)}
+          {TOOLS.map(t => toolBtn(t, "strip"))}
+          <button onClick={()=>setShowLibrary(true)} style={ctl(false,{flexDirection:"column",justifyContent:"center",gap:2,height:48,minWidth:64,padding:"0 10px",fontSize:11,border:`1px solid ${COLORS.textDim}`,color:COLORS.text})}><Icon name="plus" size={22}/><span>Add</span></button>
+          <button onClick={()=>setPanelMode(m=>m?null:"peek")} style={ctl(!!panelMode,{flexDirection:"column",justifyContent:"center",gap:2,height:48,minWidth:64,padding:"0 10px",fontSize:11,border:`1px solid ${panelMode?COLORS.accent:COLORS.border}`})}><Icon name="layers" size={22}/><span>Panels</span></button>
+        </div>)}
+      {vp === "phone" && (
+        <div role="tablist" aria-label="Workspaces" className="sd-safe-bottom" style={{ flexShrink:0, display:"flex", background:COLORS.raised, borderTop:`1px solid ${COLORS.border}` }}>
+          {workspaces.map(w => (
+            <button key={w.id} role="tab" aria-selected={w.on} onClick={w.go}
+              style={{ flex:1, minHeight:56, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:2, background:"transparent", border:"none", borderTop:`2px solid ${w.on?COLORS.accent:"transparent"}`, color:w.on?COLORS.text:COLORS.textDim, cursor:"pointer", fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:500, fontSize:11 }}>
+              <Icon name={w.icon} size={22}/><span>{w.label.replace(/ \(\d+\)/,"")}{openPins && w.id==="notes" ? ` ${openPins}` : ""}</span></button>))}
+        </div>)}
+
+      {/* status bar: desktop and tablet */}
+      {vp !== "phone" && (
+        <div style={{ flexShrink:0, display:"flex", alignItems:"center", gap:16, padding:"0 12px", minHeight:32, background:COLORS.raised, borderTop:`1px solid ${COLORS.border}`, fontSize:12, color:COLORS.textDim }}>
+          <label style={{ display:"flex", alignItems:"center", gap:6 }}>Snap
+            <select value={snapStep} onChange={e=>setSnapStep(+e.target.value)} style={{ background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"2px 6px", fontFamily:FONT_MONO, fontSize:12 }}>
+              <option value={GRID}>1 ft</option><option value={GRID/2}>6 in</option><option value={GRID/12}>1 in</option><option value={0}>Off</option>
+            </select></label>
+          <button aria-pressed={showGrid} onClick={()=>setShowGrid(g=>!g)} style={ctl(showGrid,{height:26,padding:"0 10px",fontSize:12})}>Grid</button>
+          <button aria-pressed={showMeasure} onClick={()=>setShowMeasure(m=>!m)} style={ctl(showMeasure,{height:26,padding:"0 10px",fontSize:12})}>Scale</button>
+          <span style={{ flex:1 }}/>
+          <span style={{ fontFamily:FONT_MONO }}>{stageW}' × {stageH}' stage</span>
+          <span style={{ fontFamily:FONT_MONO }}>{Math.round(zoom*100)}%</span>
+          {vp === "desktop" && <button aria-expanded={showKeys} onClick={()=>setShowKeys(k=>!k)} style={ctl(showKeys,{height:26,padding:"0 10px",fontSize:12})}>Shortcuts</button>}
+        </div>)}
+
+      {ask && <AskText title={ask.title} value={ask.value} onOk={(v)=>{ const a=ask; setAsk(null); a.onOk(v); }} onCancel={()=>{ const a=ask; setAsk(null); a.onCancel && a.onCancel(); }}/>}
     </div>
   );
 }

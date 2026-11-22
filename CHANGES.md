@@ -2,6 +2,15 @@
 
 Baseline: the `main` branch of dmreese2-tech/stage-designer as of the 2026-10-31 upload (App.jsx, 2,575 lines).
 
+## Responsive GUI (desktop, tablet, phone)
+- **Three layouts** chosen by window width: desktop (1100px and up) keeps the tool rail, library and inspector; tablet (600-1099px) uses a floating tool rail with the library and inspector as bottom sheets; phone (under 600px) uses a bottom tool strip, a workspace tab bar (Plan, 3D, Paperwork, Build, Notes) and sheets.
+- **Touch-friendly:** 44px minimum targets, 16px inputs (no iOS zoom), safe-area insets, `100dvh`, no text-selection or callout on the canvas. Selecting a piece opens its properties sheet on tablet and phone; a floating action bar offers Duplicate, Copy, Paste and Delete.
+- **Fit to window** on tablet and phone, plus zoom buttons and a Fit control.
+- **Cross-browser CSS:** Firefox and WebKit scrollbars, `:focus-visible` rings, reduced-motion support.
+- **Dialogs:** calibrate, comment pin and label now use an in-app text dialog instead of `window.prompt`, which works on iOS home-screen apps.
+- **Menus:** Export, Venue editor, Project info and Instrument schedule move into a More menu on narrow screens.
+- Testing note: verified in Chromium at 1440, 820 and 390 widths with touch emulation. Firefox, Safari and a real iPad or phone are still worth a quick check.
+
 ## Install
 1. Unzip `stage-designer-src.zip`. It contains a `src/` folder.
 2. Upload everything in it to the repo's `src/` folder (replace App.jsx and add the new files). `package.json`, `vite.config.js` and the workflow are unchanged; there are no new dependencies.
