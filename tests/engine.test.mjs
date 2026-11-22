@@ -208,4 +208,8 @@ console.log("ALL PASS 3");
   assert.ok(pr.misc.some(m=>/Bulb/.test(m.name)&&m.note==="25 W")); assert.ok(pr.misc.some(m=>m.name==="Inline dimmer"));
   assert.ok(pr.notes.some(n=>/channel 12/.test(n)));
 }
+{
+  const f = buildAll([{id:"f1",category:"set",type:"flat",x:0,y:0,w:80,h:4,height:120}], shop, G).pieces[0];
+  assert.ok(/10'/.test(f.dims) || /120|10'-0/.test(f.dims), "flat uses el.height: "+f.dims);
+}
 console.log("ALL PASS 4");

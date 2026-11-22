@@ -1,6 +1,7 @@
 import { beamInfo } from "./lighting.js";
 import { useState, useRef } from "react";
 import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, SET_DEFS, LAYERS, MOUNTS } from "./constants.js";
+import { DEFAULT_HEIGHT_IN } from "./stage.js";
 import { parseFtIn, fmtFtIn } from "./units.js";
 // panels.jsx — properties, group-selection and underlay panels, plus the feet-inches input.
 // Controlled text field that accepts feet-and-inches. value is in feet; onCommit gets feet.
@@ -222,10 +223,21 @@ export function PropsPanel({ allEls, selEl, updateEl, battens, setElements, setS
           </div>
         )}
 
+        {/* Height — how tall an upright piece is (flats, walls, drapes, furniture). Platforms and stairs use Elevation below. */}
+        {!isBatten && !isText && !isLight && !["platform","tri_platform","stairs"].includes(selEl.type) && (
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:9, color:COLORS.textDim }}>HEIGHT (in)</div>
+            <input type="number" min="0" step="1" value={selEl.height ?? ""} placeholder={String(DEFAULT_HEIGHT_IN[selEl.type] ?? 30)}
+              onChange={e=>updateEl("height", e.target.value==="" ? undefined : Math.max(0, +e.target.value))}
+              style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>
+            <span style={{ fontSize:9, color:COLORS.textDim, marginLeft:6 }}>used in 3D and Build · size above is the footprint</span>
+          </div>
+        )}
+
         {/* Elevation — height of the top surface above the stage floor, in inches */}
         {!isBatten && !isText && !isLight && (
           <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim }}>ELEVATION (in)</div>
+            <div style={{ fontSize:9, color:COLORS.textDim }}>ELEVATION / DECK HEIGHT (in)</div>
             <input type="number" min="0" step="1" value={selEl.elevation ?? 0}
               onChange={e=>updateEl("elevation", Math.max(0, +e.target.value))}
               style={{ width:58, background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"3px 5px", fontSize:11, fontFamily:"inherit" }}/>

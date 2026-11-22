@@ -494,11 +494,12 @@ function genPractical(g, el, shop) {
 
 // ── element → piece ─────────────────────────────────────────────────────────
 function pieceHeight(el, fallback) {
-  const h = el.construction?.heightIn;
-  if (h > 0) return h;
-  if (el.elevation > 0 && (el.type === "platform" || el.type === "stairs" || /tri/i.test(el.type || ""))) return el.elevation;
-  if (el.height > 0 && !(el.type === "platform" || el.type === "stairs" || /tri/i.test(el.type || ""))) return el.height;   // piece height (in) set in the Properties panel
-  return fallback;
+  // The Properties panel sets el.height (upright pieces) or el.elevation (platforms, stairs); the Build screen writes the same fields.
+  const low = el.type === "platform" || el.type === "stairs" || /tri/i.test(el.type || "");
+  if (low) { if (el.elevation > 0) return el.elevation; }
+  else if (el.height > 0) return el.height;
+  const h = el.construction?.heightIn;   // older saved plans
+  return h > 0 ? h : fallback;
 }
 
 function makePiece(el, tpl, shop, grid) {
