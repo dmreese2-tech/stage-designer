@@ -94,3 +94,5 @@ Every rule that was fixed in the templates is now a Shop Standards setting, with
 
 - Shop Standards: "Confirm all defaults as they are" button.
 - The logo links back to apps.upstage.systems on phone and tablet (desktop keeps the Apps button).
+
+- Properties panel has a Height field for upright pieces (3D and Build read it); Build height edits update the same field. Elevation relabelled "Elevation / deck height".
