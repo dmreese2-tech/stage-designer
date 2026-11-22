@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Dialog, useViewport } from "./layout.jsx";
 import { COLORS, VENUE_CONFIGS } from "./constants.js";
 import { loadLibrary, saveLibrary, parseVenueFile, libraryFile, upsert } from "./venueLibrary.js";
 // VenueEditorModal.jsx — venue / room / audience / vomitory editor.
   // ── Venue Editor modal ────────────────────────────────────────────────────
 export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, onClose, onApply }) {
+  const phone = useViewport() === "phone";
     const [draft, setDraft] = useState({ ...venue });
     const [activeTab, setActiveTab] = useState("config");
     const [editingZone, setEditingZone] = useState(null);
@@ -39,29 +41,25 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
     const tabStyle = (id) => ({
       padding: "7px 14px", background: activeTab===id ? COLORS.bg : "transparent",
       color: activeTab===id ? COLORS.accent : COLORS.textDim, border:"none", cursor:"pointer",
-      fontSize:11, fontFamily:"inherit", borderBottom: activeTab===id ? `2px solid ${COLORS.accent}` : "2px solid transparent",
+      whiteSpace:"nowrap", flex:"none", fontSize:11, fontFamily:"inherit", borderBottom: activeTab===id ? `2px solid ${COLORS.accent}` : "2px solid transparent",
     });
     const fieldStyle = { width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"5px 7px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" };
     const labelStyle = { fontSize:9, color:COLORS.textDim, marginBottom:3, textTransform:"uppercase", letterSpacing:0.5 };
 
     return (
-      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-        <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, width:780, maxWidth:"96vw", maxHeight:"90vh", display:"flex", flexDirection:"column" }}>
-
-          {/* Header */}
-          <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
-            <span style={{ flex:1, fontSize:14, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>VENUE SPACE EDITOR</span>
-            <button onClick={onClose} style={{ background:"transparent", color:COLORS.textDim, border:"none", fontSize:20, cursor:"pointer" }}>✕</button>
-          </div>
-
+      <Dialog title="Venue space editor" width={780} tall pad={0} scroll={false} onClose={onClose}
+        footer={<>
+          <button onClick={onClose} style={{ padding:"7px 18px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Cancel</button>
+          <button onClick={()=>onApply(draft)} style={{ padding:"7px 20px", background:COLORS.accent, color:COLORS.onAccent, border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:"bold" }}>✓ Apply Venue</button>
+        </>}>
           {/* Tabs */}
-          <div style={{ display:"flex", borderBottom:`1px solid ${COLORS.border}` }}>
+          <div className="sd-scroll-x" style={{ display:"flex", borderBottom:`1px solid ${COLORS.border}`, flexShrink:0, background:COLORS.raised }}>
             {[["config","Configuration"],["room","Room Shape"],["audience","Seating"],["access","Access"],["library","Library"]].map(([id,lbl])=>(
               <button key={id} style={tabStyle(id)} onClick={()=>setActiveTab(id)}>{lbl}</button>
             ))}
           </div>
 
-          <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+          <div style={{ display:"flex", flex:1, minHeight:0, overflow:"hidden" }}>
 
             {/* Left: controls */}
             <div style={{ flex:1, overflowY:"auto", padding:18 }}>
@@ -370,7 +368,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
             </div>
 
             {/* Right: live preview */}
-            <div style={{ width:220, borderLeft:`1px solid ${COLORS.border}`, padding:14, background:COLORS.bg, display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
+            <div style={{ width:220, borderLeft:`1px solid ${COLORS.border}`, padding:14, background:COLORS.bg, display:phone?"none":"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
               <div style={{ fontSize:9, color:COLORS.textDim, letterSpacing:1, marginBottom:4 }}>LIVE PREVIEW</div>
               <svg width={pW} height={pH} style={{ border:`1px solid ${COLORS.border}`, borderRadius:4, display:"block", maxWidth:"100%" }}>
                 {/* Room */}
@@ -419,17 +417,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
               </div>
             </div>
           </div>
-
-          {/* Footer */}
-          <div style={{ display:"flex", justifyContent:"flex-end", gap:8, padding:"12px 18px", borderTop:`1px solid ${COLORS.border}` }}>
-            <button onClick={onClose} style={{ padding:"7px 18px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Cancel</button>
-            <button onClick={()=>onApply(draft)}
-              style={{ padding:"7px 20px", background:COLORS.accent, color:COLORS.onAccent, border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:"bold" }}>
-              ✓ Apply Venue
-            </button>
-          </div>
-        </div>
-      </div>
+      </Dialog>
     );
   };
 
