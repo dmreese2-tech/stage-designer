@@ -2,6 +2,13 @@
 
 Baseline: the `main` branch of dmreese2-tech/stage-designer as of the 2026-10-31 upload (App.jsx, 2,575 lines).
 
+## Scenes and the shift list
+- **Scenes:** a plan can hold one layout per scene, with an Act and Scene number, a name, a cue number, shift crew and notes. A scene strip under the top bar shows the current scene with previous and next buttons; tap it to open the Scenes page.
+- **Stationary or Moving:** every piece is stationary by default and keeps one position in every scene. Tick "Moves between scenes" in a piece's Properties (or in the Moving pieces tab) and it keeps its own position, rotation, height and, for battens, trim in each scene. Move a piece to the wings to strike it; move it back to bring it on.
+- **New scene:** Add scene copies where everything is now, so you only move what changes.
+- **Shift list:** compares each scene with the one before and lists every moving piece that changed, with from and to positions as distance from the centre line and from the downstage edge. Export it as CSV (Cue, Act, Scene, Scene name, Item, Action, From, To, Crew, Notes) or print it for the crew. The CSV columns are a starting point until we match CueControl's import.
+- Scenes are saved with the plan in autosave, JSON files and share links.
+
 ## Dialogs on phones, and the magic sheet
 - **Venue editor, Project info, Instrument schedule and Compare** now share one dialog frame: a centred card on tablet and desktop, full screen on phones, with a 44 px close button, a scrolling body and a footer that stays in view. The Venue editor's tab row scrolls sideways and its live preview is hidden on phones; the Instrument schedule tables scroll sideways.
 - **Magic sheet** (Paperwork > Magic sheet): a plan view of the stage where each channel is a tag coloured by its gel and placed where that light is aimed (or at the fixture when no aim is set). Nearby channels stack. A Print button gives a one-page landscape sheet for the console or the booth.
