@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { COLORS, GRID, SET_DEFS, FIXTURE_DEFS, FONT_UI } from "./constants.js";
 import { Btn } from "./ui.jsx";
+import { Dialog } from "./layout.jsx";
 import { fmtFtIn } from "./units.js";
 
 const FIELDS = [["x", "x", 1], ["y", "y", 1], ["w", "width", 1], ["h", "depth", 1], ["x1", "x1", 1], ["y1", "y1", 1], ["x2", "x2", 1], ["y2", "y2", 1],
@@ -35,14 +36,8 @@ export default function CompareModal({ elements, onClose }) {
   };
   const sec = (t, c) => <div style={{ fontSize: 11, color: c, margin: "10px 0 4px", letterSpacing: 1 }}>{t}</div>;
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 640, maxWidth: "94vw", maxHeight: "86vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
-          <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>⇄ COMPARE WITH AN EARLIER PLAN</span>
-          <div style={{ flex: 1 }} />
-          <button onClick={onClose} style={{ background: "transparent", color: COLORS.textDim, border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
-        </div>
-        <div style={{ padding: 14, overflow: "auto" }}>
+    <Dialog title="Compare with an earlier plan" width={640} tall onClose={onClose}>
+      <div>
           <label style={{ display: "inline-block" }}><Btn onClick={(e) => e.currentTarget.nextSibling.click()}>Choose an earlier JSON file…</Btn><input type="file" accept=".json" onChange={load} style={{ display: "none" }} /></label>
           {name && <span style={{ fontSize: 11, color: COLORS.textDim, marginLeft: 8 }}>{name}</span>}
           {err && <div style={{ color: "#ff6677", fontSize: 12, marginTop: 8 }}>{err}</div>}
@@ -54,8 +49,7 @@ export default function CompareModal({ elements, onClose }) {
             {res.changed.length > 0 && sec("CHANGED", "#ffcc66")}{res.changed.map(({ el, ch }) => <div key={el.id} style={{ fontSize: 11, marginBottom: 4 }}>{nameOf(el)}<div style={{ color: COLORS.textDim, paddingLeft: 12 }}>{ch.join(" · ")}</div></div>)}
             {!res.added.length && !res.removed.length && !res.changed.length && <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 8 }}>No differences found.</div>}
           </>)}
-        </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

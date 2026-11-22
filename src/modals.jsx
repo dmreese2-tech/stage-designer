@@ -2,40 +2,30 @@ import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS } from "./constants.js";
 import { fmtTrim } from "./units.js";
 import { Btn } from "./ui.jsx";
 import { generateInstrumentSchedulePDF } from "./pdf.js";
+import { Dialog } from "./layout.jsx";
 // modals.jsx — project info and channel/batten schedule dialogs.
   // ── Project info modal ────────────────────────────────────────────────────
 export function ProjectInfoModal({ projectInfo, setProjectInfo, onClose }) {
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:24, width:420, maxWidth:"90vw" }}>
-        <div style={{ fontSize:13, fontWeight:"bold", color:COLORS.accent, marginBottom:16, letterSpacing:1 }}>PROJECT INFORMATION</div>
-        {[["Production Title","title"],["Venue","venue"],["Lighting Designer","designer"],["Director","director"],["Revision #","revision"]].map(([lbl,key])=>(
-          <div key={key} style={{ marginBottom:10 }}>
-            <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>{lbl}</div>
-            <input value={projectInfo[key]||""} onChange={e=>setProjectInfo(p=>({...p,[key]:e.target.value}))}
-              style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"6px 8px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-          </div>
-        ))}
-        <div style={{ display:"flex", gap:8, marginTop:16, justifyContent:"flex-end" }}>
-          <Btn onClick={onClose}>Cancel</Btn>
-          <Btn active onClick={onClose}>Save</Btn>
-        </div>
-      </div>
-    </div>
+    <Dialog title="Project information" width={440} onClose={onClose}
+      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn active onClick={onClose}>Save</Btn></>}>
+      {[["Production Title","title"],["Venue","venue"],["Lighting Designer","designer"],["Director","director"],["Revision #","revision"]].map(([lbl,key])=>(
+        <label key={key} style={{ display:"block", marginBottom:12 }}>
+          <div style={{ fontSize:11, color:COLORS.textDim, marginBottom:4 }}>{lbl}</div>
+          <input value={projectInfo[key]||""} onChange={e=>setProjectInfo(p=>({...p,[key]:e.target.value}))}
+            style={{ width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"6px 8px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
+        </label>
+      ))}
+    </Dialog>
   );
 }
 
 // ── Channel Schedule modal ────────────────────────────────────────────────
 export function ScheduleModal({ projectInfo, elements, stageW, stageH, lightingEls, battens, setSelected, onClose, setSidebarTab }) {
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:0, width:860, maxWidth:"95vw", maxHeight:"85vh", display:"flex", flexDirection:"column" }}>
-        <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
-          <span style={{ flex:1, fontSize:13, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>INSTRUMENT SCHEDULE — {projectInfo.title||"Untitled"}</span>
-          <Btn active onClick={()=>generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo)}>Print / PDF</Btn>
-          <button onClick={onClose} style={{ marginLeft:8, background:"transparent", color:COLORS.textDim, border:"none", fontSize:18, cursor:"pointer" }}>✕</button>
-        </div>
-        <div style={{ flex:1, overflowY:"auto", padding:16 }}>
+    <Dialog title={`Instrument schedule — ${projectInfo.title||"Untitled"}`} width={860} tall onClose={onClose}
+      actions={<Btn active onClick={()=>generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo)}>Print / PDF</Btn>}>
+      <div style={{ overflowX:"auto" }}>
           {lightingEls.length === 0
             ? <div style={{ textAlign:"center", padding:40, color:COLORS.textDim }}>No lighting fixtures in plot yet.</div>
             : <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
@@ -106,9 +96,8 @@ export function ScheduleModal({ projectInfo, elements, stageW, stageH, lightingE
               </table>
             </>
           )}
-        </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 

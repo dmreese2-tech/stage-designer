@@ -136,3 +136,24 @@ export function WsFrame({ title, tabs, tab, setTab, actions = [], main, children
     </div>
   );
 }
+
+// Modal dialog: a centred card on tablet and desktop, full screen on phones.
+// Title row with a 44 px close button, scrolling body, optional footer.
+export function Dialog({ title, onClose, width = 560, tall = false, actions, footer, children, pad = 16, scroll = true }) {
+  const vp = useViewport();
+  const phone = vp === "phone";
+  return (
+    <div role="dialog" aria-label={typeof title === "string" ? title : undefined} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: phone ? 0 : 12 }}
+      onKeyDown={(e) => { if (e.key === "Escape") onClose && onClose(); }}>
+      <div style={{ background: COLORS.panel, border: phone ? "none" : `1px solid ${COLORS.borderStrong}`, borderRadius: phone ? 0 : 8, width: phone ? "100%" : width, maxWidth: "100%", height: phone ? "100dvh" : tall ? "90vh" : "auto", maxHeight: phone ? "100dvh" : "90vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: phone ? "0 4px 0 14px" : "0 8px 0 16px", minHeight: 52, background: COLORS.raised, borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+          <span style={{ flex: 1, minWidth: 0, fontFamily: FONT_DISPLAY, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
+          {actions}
+          {onClose && <button aria-label="Close" onClick={onClose} style={ctl(false, { width: 44, padding: 0, justifyContent: "center" })}><Icon name="delete" size={20} sw={2.2} /></button>}
+        </div>
+        <div style={{ flex: 1, minHeight: 0, overflow: scroll ? "auto" : "hidden", padding: pad, display: scroll ? "block" : "flex", flexDirection: "column", WebkitOverflowScrolling: "touch" }}>{children}</div>
+        {footer && <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: phone ? "10px 12px" : "12px 16px", borderTop: `1px solid ${COLORS.border}`, background: COLORS.raised, flexShrink: 0 }}>{footer}</div>}
+      </div>
+    </div>
+  );
+}
