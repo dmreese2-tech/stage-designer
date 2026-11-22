@@ -50,7 +50,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
 
           {/* Header */}
           <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
-            <span style={{ flex:1, fontSize:14, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>🏛 VENUE SPACE EDITOR</span>
+            <span style={{ flex:1, fontSize:14, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>VENUE SPACE EDITOR</span>
             <button onClick={onClose} style={{ background:"transparent", color:COLORS.textDim, border:"none", fontSize:20, cursor:"pointer" }}>✕</button>
           </div>
 
@@ -78,7 +78,6 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
                           borderRadius:6, cursor:"pointer", transition:"all 0.15s" }}
                         onMouseEnter={e=>{ if(draft.config!==key) e.currentTarget.style.borderColor=COLORS.hover; }}
                         onMouseLeave={e=>{ if(draft.config!==key) e.currentTarget.style.borderColor=COLORS.border; }}>
-                        <div style={{ fontSize:18, marginBottom:3 }}>{cfg.icon}</div>
                         <div style={{ fontSize:12, fontWeight:"bold", color: draft.config===key ? COLORS.accent : COLORS.text }}>{cfg.label}</div>
                         <div style={{ fontSize:10, color:COLORS.textDim, marginTop:2 }}>{cfg.desc}</div>
                       </div>
@@ -125,7 +124,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
                     <div style={{ display:"flex", gap:6 }}>
                       {[["N","Top (default)"],["S","Bottom"],["W","Left"],["E","Right"]].map(([v,lbl])=>(
                         <button key={v} onClick={()=>upd("orientation",v)}
-                          style={{ flex:1, padding:"5px 4px", fontSize:10, background:draft.orientation===v?COLORS.accent:"transparent", color:draft.orientation===v?"#fff":COLORS.textDim, border:`1px solid ${draft.orientation===v?COLORS.accent:COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
+                          style={{ flex:1, padding:"5px 4px", fontSize:10, background:draft.orientation===v?COLORS.accentDim:"transparent", color:draft.orientation===v?COLORS.text:COLORS.textDim, border:`1px solid ${draft.orientation===v?COLORS.accent:COLORS.border}`, borderRadius:4, cursor:"pointer", fontFamily:"inherit" }}>
                           {lbl}
                         </button>
                       ))}
@@ -226,7 +225,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
                     </div>
                   </div>
                   <div style={{ padding:12, background:COLORS.bg, borderRadius:6, fontSize:11, color:COLORS.textDim, border:`1px solid ${COLORS.border}` }}>
-                    💡 Tip: For non-rectangular rooms (L-shaped, hexagonal, etc.), use the Wall drawing tool on the canvas to draw the room boundary as architectural walls on the Set layer.
+                    Tip: For non-rectangular rooms (L-shaped, hexagonal, etc.), use the Wall drawing tool on the canvas to draw the room boundary as architectural walls on the Set layer.
                   </div>
                 </div>
               )}
@@ -239,7 +238,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
                     const newZone = { x:2, y: (draft.roomH||50)-15, w: (draft.roomW||50)-4, h:12, label:`Zone ${(draft.audience||[]).length+1}`, seats:80, color:"" };
                     upd("audience", [...(draft.audience||[]), newZone]);
                     setEditingZone((draft.audience||[]).length);
-                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
+                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:COLORS.onAccent, border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
                     + Add Seating Zone
                   </button>
 
@@ -294,7 +293,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
                   <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
                     <input value={libName} onChange={e=>setLibName(e.target.value)} placeholder="Venue name" style={{ ...fieldStyle, width:220 }}/>
                     <button onClick={()=>{ if (!libName.trim()) { setLibMsg("Type a name first."); return; } commitLib(upsert(lib, { name: libName.trim(), venue: JSON.parse(JSON.stringify({ ...draft, name: libName.trim() })), stageW, stageH }), `Saved "${libName.trim()}".`); }}
-                      style={{ padding:"6px 12px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Save current venue</button>
+                      style={{ padding:"6px 12px", background:COLORS.accent, color:COLORS.onAccent, border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Save current venue</button>
                     <label style={{ padding:"6px 12px", border:`1px solid ${COLORS.border}`, borderRadius:5, cursor:"pointer", fontSize:12, color:COLORS.text }}>Import file…
                       <input type="file" accept=".json" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ try { const found=parseVenueFile(ev.target.result, f.name.replace(/\.json$/i,"")); if(!found.length) throw 0; commitLib(found.reduce((a,v)=>upsert(a,v), lib), `Imported ${found.length} venue(s).`); } catch { setLibMsg("That file has no venue in it."); } }; r.readAsText(f); e.target.value=""; }}/>
                     </label>
@@ -321,7 +320,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
                     const newV = { wall:"S", pos:0.5, w:4, label:`Vom ${(draft.vomitories||[]).length+1}` };
                     upd("vomitories", [...(draft.vomitories||[]), newV]);
                     setEditingVom((draft.vomitories||[]).length);
-                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
+                  }} style={{ marginBottom:12, padding:"7px 14px", background:COLORS.accent, color:COLORS.onAccent, border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>
                     + Add Vomitory
                   </button>
 
@@ -425,7 +424,7 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
           <div style={{ display:"flex", justifyContent:"flex-end", gap:8, padding:"12px 18px", borderTop:`1px solid ${COLORS.border}` }}>
             <button onClick={onClose} style={{ padding:"7px 18px", background:"transparent", color:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit" }}>Cancel</button>
             <button onClick={()=>onApply(draft)}
-              style={{ padding:"7px 20px", background:COLORS.accent, color:"#fff", border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:"bold" }}>
+              style={{ padding:"7px 20px", background:COLORS.accent, color:COLORS.onAccent, border:"none", borderRadius:5, cursor:"pointer", fontSize:12, fontFamily:"inherit", fontWeight:"bold" }}>
               ✓ Apply Venue
             </button>
           </div>

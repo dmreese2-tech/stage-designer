@@ -45,13 +45,13 @@ export function UnderlayPanel({ underlay, setUnderlay, calib, setCalib, stageW, 
       <input ref={fileRef} type="file" accept="image/*" onChange={load} style={{ display:"none" }}/>
       {!underlay ? (
         <>
-          <button onClick={()=>fileRef.current?.click()} style={btn}>🖼 Load floor-plan image</button>
+          <button onClick={()=>fileRef.current?.click()} style={btn}>Load floor-plan image</button>
           <div style={{ fontSize:9, color:COLORS.textDim, marginTop:4, lineHeight:1.4 }}>Trace a scanned plan or photo. After loading, use Calibrate to set the real scale.</div>
         </>
       ) : (
         <>
           <div style={{ display:"flex", gap:4, marginBottom:6 }}>
-            <button onClick={()=>setCalib(calib ? null : { pts:[] })} style={{ ...btn, background:calib?COLORS.accent:COLORS.bg, color:calib?"#fff":COLORS.text }}>{calib ? `Click point ${calib.pts.length+1} of 2 (cancel)` : "📏 Calibrate scale"}</button>
+            <button onClick={()=>setCalib(calib ? null : { pts:[] })} style={{ ...btn, background:calib?COLORS.accentDim:COLORS.bg, color:calib?COLORS.text:COLORS.text }}>{calib ? `Click point ${calib.pts.length+1} of 2 (cancel)` : "Calibrate scale"}</button>
           </div>
           <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:6, lineHeight:1.4 }}>Calibrate: click two points on the image whose real distance you know (a wall, a door width), then type the distance.</div>
           <div style={{ fontSize:9, color:COLORS.textDim }}>OPACITY</div>
@@ -142,7 +142,7 @@ export function GroupPanel({ ids, elements, onCopy, onDuplicate, onDelete, onCle
       <button onClick={onClear} style={{ ...btn, marginTop:10, width:"100%" }}>Deselect</button>
       <button onClick={onDelete}
         style={{ marginTop:6, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-        🗑 Delete {picked.length} Items
+        Delete {picked.length} Items
       </button>
     </div>
   );
@@ -258,7 +258,7 @@ export function PropsPanel({ allEls, selEl, updateEl, battens, setElements, setS
             <div style={{ marginBottom:8 }}>
               <div style={{ fontSize:9, color:COLORS.textDim }}>Show Beam</div>
               <button onClick={()=>updateEl("focused",!selEl.focused)}
-                style={{ background:selEl.focused?COLORS.accent:COLORS.bg, color:selEl.focused?"#fff":COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 14px", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
+                style={{ background:selEl.focused?COLORS.accentDim:COLORS.bg, color:selEl.focused?COLORS.text:COLORS.textDim, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 14px", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
                 {selEl.focused?"On":"Off"}
               </button>
             </div>
@@ -376,7 +376,7 @@ export function PropsPanel({ allEls, selEl, updateEl, battens, setElements, setS
         {hasClipboard && (
           <button onClick={pasteClipboard}
             style={{ marginTop:6, width:"100%", background:COLORS.bg, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-            📋 Paste Copy
+            Paste Copy
           </button>
         )}
 
@@ -395,7 +395,7 @@ export function PropsPanel({ allEls, selEl, updateEl, battens, setElements, setS
 
         <button onClick={()=>{setElements(prev=>prev.filter(e=>e.id!==selected));setSelected(null);}}
           style={{ marginTop:6, width:"100%", background:"#3a1010", color:COLORS.accent, border:`1px solid ${COLORS.accentDim}`, borderRadius:4, padding:"7px 0", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>
-          🗑 Delete Element
+          Delete Element
         </button>
       </div>
     );

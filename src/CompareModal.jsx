@@ -1,6 +1,6 @@
 // CompareModal.jsx — compare the current plan with an earlier saved JSON file (revision compare).
 import { useState } from "react";
-import { COLORS, GRID, SET_DEFS, FIXTURE_DEFS } from "./constants.js";
+import { COLORS, GRID, SET_DEFS, FIXTURE_DEFS, FONT_UI } from "./constants.js";
 import { Btn } from "./ui.jsx";
 import { fmtFtIn } from "./units.js";
 
@@ -36,7 +36,7 @@ export default function CompareModal({ elements, onClose }) {
   const sec = (t, c) => <div style={{ fontSize: 11, color: c, margin: "10px 0 4px", letterSpacing: 1 }}>{t}</div>;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 640, maxWidth: "94vw", maxHeight: "86vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: "'Courier New',monospace" }}>
+      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 8, width: 640, maxWidth: "94vw", maxHeight: "86vh", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
           <span style={{ color: COLORS.accent, fontWeight: "bold", letterSpacing: 1, fontSize: 13 }}>⇄ COMPARE WITH AN EARLIER PLAN</span>
           <div style={{ flex: 1 }} />

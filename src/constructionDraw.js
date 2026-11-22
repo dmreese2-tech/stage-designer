@@ -373,7 +373,7 @@ export function printHTML(result, plan, shop, info = {}) {
   .steps{display:grid;grid-template-columns:1fr 1fr;gap:10px}.step{border:1px solid #bbb;padding:6px 8px;break-inside:avoid;position:relative;padding-left:30px}
   .sn{position:absolute;left:6px;top:6px;width:18px;height:18px;border-radius:9px;background:#222;color:#fff;font-size:9pt;font-weight:700;text-align:center;line-height:18px}.st{font-size:9pt;margin-bottom:4px}.sf svg{width:100%;height:auto}
   .tot{margin-top:10px;font-size:11pt}.note{margin-top:10px;color:#666;font-size:9pt}
-  .pb{position:fixed;top:10px;right:10px;background:#e94560;color:#fff;border:0;padding:9px 18px;border-radius:6px;font-weight:700;cursor:pointer}
+  .pb{position:fixed;top:10px;right:10px;background:#CC8530;color:#1D2127;border:0;padding:9px 18px;border-radius:6px;font-weight:700;cursor:pointer}
   @media print{.pb{display:none}.page{width:100%;min-height:auto}}
-  </style></head><body><button class="pb" onclick="window.print()">🖨 Print / Save PDF</button>${pieceSheets}${cutPage}${buy}${statusPage}</body></html>`;
+  </style></head><body><button class="pb" onclick="window.print()">Print / Save PDF</button>${pieceSheets}${cutPage}${buy}${statusPage}</body></html>`;
 }

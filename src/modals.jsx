@@ -32,7 +32,7 @@ export function ScheduleModal({ projectInfo, elements, stageW, stageH, lightingE
       <div style={{ background:COLORS.panel, border:`1px solid ${COLORS.border}`, borderRadius:8, padding:0, width:860, maxWidth:"95vw", maxHeight:"85vh", display:"flex", flexDirection:"column" }}>
         <div style={{ display:"flex", alignItems:"center", padding:"14px 18px", borderBottom:`1px solid ${COLORS.border}` }}>
           <span style={{ flex:1, fontSize:13, fontWeight:"bold", color:COLORS.accent, letterSpacing:1 }}>INSTRUMENT SCHEDULE — {projectInfo.title||"Untitled"}</span>
-          <Btn active onClick={()=>generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo)}>🖨 Print / PDF</Btn>
+          <Btn active onClick={()=>generateInstrumentSchedulePDF(elements, stageW, stageH, projectInfo)}>Print / PDF</Btn>
           <button onClick={onClose} style={{ marginLeft:8, background:"transparent", color:COLORS.textDim, border:"none", fontSize:18, cursor:"pointer" }}>✕</button>
         </div>
         <div style={{ flex:1, overflowY:"auto", padding:16 }}>
