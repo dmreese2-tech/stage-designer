@@ -24,7 +24,7 @@ export default function LightingModal({ stageW = 36, stageH = 27, elements, setE
     a.download = `${projectInfo?.title || "lighting"}-patch.csv`; a.click();
   };
   const set = (id, k, v) => setElements((els) => els.map((e) => (e.id === id ? { ...e, [k]: v } : e)));
-  const tabs = [["patch", "Patch"], ["load", "Load & power"], ["colour", "Colour cuts"], ["key", "Equipment key"], ["focus", "Focus chart"], ["section", "Side section"]];
+  const tabs = [["patch", "Patch"], ["load", "Load & power"], ["colour", "Colour cuts"], ["key", "Equipment key"], ["focus", "Focus chart"], ["magic", "Magic sheet"], ["section", "Side section"]];
   const inp = { width: 58, background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 3, padding: "2px 4px", fontSize: 11, fontFamily: "inherit" };
   return (
     <WsFrame title="Lighting paperwork" tabs={tabs} tab={tab} setTab={setTab} main={{ label: "Patch CSV", onClick: download }}>
@@ -85,6 +85,7 @@ export default function LightingModal({ stageW = 36, stageH = 27, elements, setE
             </table></div>
             <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 8 }}>Set each fixture's aim point on the plot (Properties). Distances are measured from the centre line and from the downstage edge of the stage rectangle. Stage right is the actor's right, facing the audience.</div>
           </>)}
+          {tab === "magic" && <MagicSheet lights={lights} stageW={stageW} stageH={stageH} projectInfo={projectInfo} />}
           {tab === "section" && <SectionView elements={elements} stageW={stageW} stageH={stageH} />}
           {tab === "key" && (
             <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -120,5 +121,56 @@ function SectionView({ elements, stageW, stageH }) {
         return <g key={l.id}><line x1={X(y)} y1={Y(h)} x2={X(ay)} y2={Y(Math.min(5.5, h))} stroke={col} strokeOpacity={0.6} strokeWidth={1} /><circle cx={X(y)} cy={Y(h)} r={3.5} fill={col} stroke="#000" strokeWidth={0.5} /></g>; })}
     </svg>
     <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 6, lineHeight: 1.5 }}>Looking from stage right, downstage on the right. Battens show at trim height, fixtures at their hang height with a line to the aim point at head height (5'6"). Set pieces show their depth and height. Check clearances against your fly-system limits.</div>
+  </>);
+}
+
+
+// Magic sheet: a plan view of the stage where each channel is a coloured tag sitting where its light lands
+// (aim point, or the fixture's own position when no aim is set). Tags that land close together stack.
+function MagicSheet({ lights, stageW, stageH, projectInfo }) {
+  const S = 24, W = stageW * S + 40, H = stageH * S + 56, ox = 20, oy = 36;
+  const hexLum = (h) => { const n = parseInt((h || "#ffffff").slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+  const clusters = [];
+  lights.forEach((l) => {
+    const pt = l.aim || { x: l.x, y: l.y }, fx = pt.x / GRID, fy = pt.y / GRID;
+    let c = clusters.find((q) => Math.hypot(q.x / q.items.length - fx, q.y / q.items.length - fy) < 4);
+    if (!c) { c = { x: 0, y: 0, items: [] }; clusters.push(c); }
+    c.x += fx; c.y += fy; c.items.push(l);
+  });
+  const tags = [];
+  clusters.forEach((g) => {
+    const cx = g.x / g.items.length, cy = g.y / g.items.length, per = 3;
+    g.items.forEach((l, i) => { const col = i % per, row = Math.floor(i / per), n = Math.min(per, g.items.length - row * per);
+      tags.push({ l, x: ox + cx * S + (col - (n - 1) / 2) * 33, y: oy + cy * S + row * 22 }); });
+  });
+  const noAim = lights.filter((l) => !l.aim).length;
+  const print = () => {
+    const svg = document.getElementById("magic-sheet-svg"); if (!svg) return;
+    const w = window.open("", "_blank"); if (!w) return;
+    w.document.write(`<html><head><title>Magic sheet</title><style>body{margin:16px;font-family:sans-serif}@page{size:landscape;margin:12mm}svg{width:100%;height:auto}</style></head><body><h3 style="margin:0 0 8px">${(projectInfo?.title || "Untitled").replace(/</g, "&lt;")} — Magic sheet</h3>${svg.outerHTML}</body></html>`);
+    w.document.close(); setTimeout(() => w.print(), 300);
+  };
+  if (!lights.length) return <div style={{ color: COLORS.textDim, padding: 30, textAlign: "center" }}>No lighting fixtures in the plot yet.</div>;
+  return (<>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+      <Btn onClick={print}>Print</Btn>
+      <span style={{ fontSize: 11, color: COLORS.textDim }}>{lights.length} channels{noAim ? `, ${noAim} placed at the fixture because no aim point is set` : ""}</span>
+    </div>
+    <div style={{ overflow: "auto", border: `1px solid ${COLORS.border}`, borderRadius: 4, maxWidth: 900 }}>
+      <svg id="magic-sheet-svg" xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 560, background: "#fff", display: "block" }}>
+        <text x={ox} y={20} fontSize={12} fontFamily="sans-serif" fill="#111">Stage right</text>
+        <text x={ox + stageW * S / 2} y={20} fontSize={12} fontFamily="sans-serif" fill="#111" textAnchor="middle">Upstage</text>
+        <text x={ox + stageW * S} y={20} fontSize={12} fontFamily="sans-serif" fill="#111" textAnchor="end">Stage left</text>
+        <text x={ox + stageW * S / 2} y={H - 6} fontSize={12} fontFamily="sans-serif" fill="#111" textAnchor="middle">Downstage / audience</text>
+        <rect x={ox} y={oy} width={stageW * S} height={stageH * S} fill="#f4f1e8" stroke="#555" strokeWidth={1.5} />
+        {Array.from({ length: Math.floor(stageW / 5) }, (_, i) => (i + 1) * 5).map((f) => <line key={"v" + f} x1={ox + f * S} x2={ox + f * S} y1={oy} y2={oy + stageH * S} stroke="#d8d4c4" strokeDasharray="3 4" />)}
+        {Array.from({ length: Math.floor(stageH / 5) }, (_, i) => (i + 1) * 5).map((f) => <line key={"h" + f} y1={oy + f * S} y2={oy + f * S} x1={ox} x2={ox + stageW * S} stroke="#d8d4c4" strokeDasharray="3 4" />)}
+        <line x1={ox + stageW * S / 2} x2={ox + stageW * S / 2} y1={oy} y2={oy + stageH * S} stroke="#999" strokeDasharray="8 4" />
+        {tags.map(({ l, x, y }) => { const col = gelHex(l.gelCode), dark = hexLum(col) < 0.55; return (
+          <g key={l.id}><rect x={x - 15} y={y - 9} width={30} height={18} rx={4} fill={col} stroke="#222" strokeWidth={1} />
+            <text x={x} y={y + 4} fontSize={11} fontWeight="bold" fontFamily="sans-serif" textAnchor="middle" fill={dark ? "#fff" : "#111"}>{l.channel ?? "?"}</text></g>); })}
+      </svg>
+    </div>
+    <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 8, lineHeight: 1.5 }}>Each tag is a channel number, coloured by its gel, placed where that light is aimed. Use it as a console touch-screen layout or a paper cue sheet. Set aim points on the plot (Properties) to move tags.</div>
   </>);
 }

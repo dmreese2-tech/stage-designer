@@ -2,6 +2,10 @@
 
 Baseline: the `main` branch of dmreese2-tech/stage-designer as of the 2026-10-31 upload (App.jsx, 2,575 lines).
 
+## Dialogs on phones, and the magic sheet
+- **Venue editor, Project info, Instrument schedule and Compare** now share one dialog frame: a centred card on tablet and desktop, full screen on phones, with a 44 px close button, a scrolling body and a footer that stays in view. The Venue editor's tab row scrolls sideways and its live preview is hidden on phones; the Instrument schedule tables scroll sideways.
+- **Magic sheet** (Paperwork > Magic sheet): a plan view of the stage where each channel is a tag coloured by its gel and placed where that light is aimed (or at the fixture when no aim is set). Nearby channels stack. A Print button gives a one-page landscape sheet for the console or the booth.
+
 ## Responsive GUI (desktop, tablet, phone)
 - **Three layouts** chosen by window width: desktop (1100px and up) keeps the tool rail, library and inspector; tablet (600-1099px) uses a floating tool rail with the library and inspector as bottom sheets; phone (under 600px) uses a bottom tool strip, a workspace tab bar (Plan, 3D, Paperwork, Build, Notes) and sheets.
 - **Touch-friendly:** 44px minimum targets, 16px inputs (no iOS zoom), safe-area insets, `100dvh`, no text-selection or callout on the canvas. Selecting a piece opens its properties sheet on tablet and phone; a floating action bar offers Duplicate, Copy, Paste and Delete.
