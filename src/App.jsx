@@ -946,13 +946,14 @@ export default function StageDesigner() {
   };
   useEffect(() => { if (vp !== "desktop") { const t = setTimeout(resetView, 60); return () => clearTimeout(t); } }, [vp]);
   const zoomBy = (f) => setZoom(z => Math.min(4, Math.max(0.15, z * f)));
+  const inWorkspace = showBuild || show3D || showNotes || showLighting;
   const closeAll = () => { setShowBuild(false); setShow3D(false); setShowNotes(false); setShowLighting(false); };
   const workspaces = [
-    { id:"plan",  label:"Plan",  icon:"plan",  on:true,  go: closeAll },
-    { id:"3d",    label:"3D",    icon:"cube",  on:false, go:()=>setShow3D(true) },
-    { id:"paper", label:"Paperwork", icon:"paper", on:false, go:()=>setShowLighting(true) },
-    { id:"build", label:"Build", icon:"build", on:false, go:()=>setShowBuild(true) },
-    { id:"notes", label:openPins?`Notes (${openPins})`:"Notes", icon:"notes", on:false, go:()=>setShowNotes(true) },
+    { id:"plan",  label:"Plan",  icon:"plan",  on:!inWorkspace, go: closeAll },
+    { id:"3d",    label:"3D",    icon:"cube",  on:show3D, go:()=>{ closeAll(); setShow3D(true); } },
+    { id:"paper", label:"Paperwork", icon:"paper", on:showLighting, go:()=>{ closeAll(); setShowLighting(true); } },
+    { id:"build", label:"Build", icon:"build", on:showBuild, go:()=>{ closeAll(); setShowBuild(true); } },
+    { id:"notes", label:openPins?`Notes (${openPins})`:"Notes", icon:"notes", on:showNotes, go:()=>{ closeAll(); setShowNotes(true); } },
   ];
   const snapLabel = snapStep === GRID ? "1 ft" : snapStep === GRID/2 ? "6 in" : snapStep === GRID/12 ? "1 in" : "Off";
   const cycleSnap = () => setSnapStep(snapStep === GRID ? GRID/2 : snapStep === GRID/2 ? GRID/12 : snapStep === GRID/12 ? 0 : GRID);
@@ -1007,13 +1008,7 @@ export default function StageDesigner() {
     <div className="sd-root" style={{ display:"flex", flexDirection:"column", background:COLORS.bg, color:COLORS.text, fontFamily:FONT_UI, overflow:"hidden" }}>
 
       {showProjectInfo && <ProjectInfoModal projectInfo={projectInfo} setProjectInfo={setProjectInfo} onClose={()=>setShowProjectInfo(false)}/>}
-      {showBuild && <ConstructionModal elements={elements} setElements={setElements} shop={shop} setShop={setShop} projectInfo={projectInfo} grid={GRID} selectedId={selected} onClose={()=>setShowBuild(false)}/>}
-      {show3D && <Suspense fallback={<div style={{ position:"fixed", inset:0, zIndex:1000, background:"#0B0E11", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
-        <View3D elements={elements} venue={venue} stageW={stageW} stageH={stageH} projectInfo={projectInfo} onClose={()=>setShow3D(false)}/>
-      </Suspense>}
-      {showNotes && <NotesModal elements={elements} setElements={setElements} onPick={(id)=>{ setSelected(id); setSidebarTab("props"); setShowNotes(false); }} onClose={()=>setShowNotes(false)}/>}
       {showCompare && <CompareModal elements={elements} onClose={()=>setShowCompare(false)}/>}
-      {showLighting && <LightingModal stageW={stageW} stageH={stageH} elements={elements} setElements={setElements} projectInfo={projectInfo} onClose={()=>setShowLighting(false)}/>}
       {showSchedule && <ScheduleModal projectInfo={projectInfo} elements={elements} stageW={stageW} stageH={stageH} lightingEls={lightingEls} battens={battens} setSelected={setSelected} setSidebarTab={setSidebarTab} onClose={()=>setShowSchedule(false)}/>}
       {showVenueEditor && <VenueEditorModal venue={venue} stageW={stageW} stageH={stageH} setStageW={setStageW} setStageH={setStageH} onClose={()=>setShowVenueEditor(false)} onApply={(d)=>{setVenue(d); setShowVenueEditor(false);}}/>}
 
@@ -1046,7 +1041,15 @@ export default function StageDesigner() {
           <Btn onClick={leaveShared} title="Keep working on this plan and save it in this browser (replaces your saved plan here)">Keep a copy in this browser</Btn>
         </div>
       )}
-      <div style={{ display:"flex", flex:1, minHeight:0, overflow:"hidden" }}>
+      <div style={{ display:"flex", flex:1, minHeight:0, overflow:"hidden", position:"relative", zIndex:0 }}>
+        {inWorkspace && <div style={{ position:"absolute", inset:0, zIndex:500, background:COLORS.bg }}>
+      {showBuild && <ConstructionModal elements={elements} setElements={setElements} shop={shop} setShop={setShop} projectInfo={projectInfo} grid={GRID} selectedId={selected} onClose={()=>setShowBuild(false)}/>}
+      {show3D && <Suspense fallback={<div style={{ position:"absolute", inset:0, background:"#0B0E11", color:COLORS.textDim, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"monospace" }}>Loading 3D view…</div>}>
+        <View3D elements={elements} venue={venue} stageW={stageW} stageH={stageH} projectInfo={projectInfo} onClose={()=>setShow3D(false)}/>
+      </Suspense>}
+      {showNotes && <NotesModal elements={elements} setElements={setElements} onPick={(id)=>{ setSelected(id); setSidebarTab("props"); setShowNotes(false); }} onClose={()=>setShowNotes(false)}/>}
+      {showLighting && <LightingModal stageW={stageW} stageH={stageH} elements={elements} setElements={setElements} projectInfo={projectInfo} onClose={()=>setShowLighting(false)}/>}
+        </div>}
         {vp === "desktop" && (
           <div role="toolbar" aria-label="Tools" style={{ width:68, flexShrink:0, background:COLORS.raised, borderRight:`1px solid ${COLORS.border}`, display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"8px 0" }}>
             {TOOLS.map(t => toolBtn(t, "rail"))}
@@ -1366,7 +1369,7 @@ export default function StageDesigner() {
       </div>
 
       {/* phone: tool strip and workspace tab bar */}
-      {vp === "phone" && (
+      {vp === "phone" && !inWorkspace && (
         <div role="toolbar" aria-label="Tools" className="sd-scroll-x" style={{ flexShrink:0, display:"flex", gap:6, padding:8, background:COLORS.raised, borderTop:`1px solid ${COLORS.border}` }}>
           {iconBtn("undo","Undo",undo,!histCount.u)}{iconBtn("redo","Redo",redo,!histCount.r)}
           {TOOLS.map(t => toolBtn(t, "strip"))}

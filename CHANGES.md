@@ -11,6 +11,13 @@ Baseline: the `main` branch of dmreese2-tech/stage-designer as of the 2026-10-31
 - **Menus:** Export, Venue editor, Project info and Instrument schedule move into a More menu on narrow screens.
 - Testing note: verified in Chromium at 1440, 820 and 390 widths with touch emulation. Firefox, Safari and a real iPad or phone are still worth a quick check.
 
+## Workspace pages on mobile
+- **3D, Paperwork, Build and Notes now open inside the app**, under the top bar and above the bottom tab bar, so you can jump between Plan, 3D, Paperwork, Build and Notes from any page. The active tab is highlighted. Before, each page covered the whole screen and the tab bar was hidden.
+- **Same look as the Plan page:** one shared page frame (Oswald title, tab row, amber primary action). On phones the secondary actions fold into a menu.
+- **Build:** the pieces list and the piece detail show one at a time on phones, with an "All pieces" back button.
+- **Paperwork:** wide tables scroll sideways instead of overflowing.
+- **3D:** the toolbar scrolls sideways, and the Audience sightlines panel opens from a Sightlines button on tablet and phone.
+
 ## Install
 1. Unzip `stage-designer-src.zip`. It contains a `src/` folder.
 2. Upload everything in it to the repo's `src/` folder (replace App.jsx and add the new files). `package.json`, `vite.config.js` and the workflow are unchanged; there are no new dependencies.

@@ -8,6 +8,7 @@ import { zipSync, strToU8 } from "fflate";
 import { buildMVRxml } from "./mvr.js";
 import { USDZExporter } from "three/examples/jsm/exporters/USDZExporter.js";
 import { GRID, COLORS, FIXTURE_DEFS, FONT_UI, FONT_DISPLAY } from "./constants.js";
+import { useViewport } from "./layout.jsx";
 import { stageOutline, DEFAULT_HEIGHT_IN } from "./stage.js";
 import { isFixture, mountHeightFt, specOf, gelHex, trimFt, AIM_HEIGHT_FT, DEFAULT_HANG_FT } from "./lighting.js";
 
@@ -151,6 +152,8 @@ export default function View3D({ elements, venue, stageW, stageH, projectInfo, o
   const [zone, setZone] = useState(0), [u, setU] = useState(0.5), [v, setV] = useState(0.5), [eyeFt, setEyeFt] = useState(3.75);
   const [sight, setSight] = useState(null), [seatMode, setSeatMode] = useState(false);
   const [walk, setWalk] = useState(false);
+  const vp = useViewport(), compact = vp !== "desktop";
+  const [showSight, setShowSight] = useState(false);
   const walkRef = useRef({ on: false, yaw: 0, pitch: 0, keys: {} });
 
   const seat = useMemo(() => {
@@ -265,30 +268,30 @@ export default function View3D({ elements, venue, stageW, stageH, projectInfo, o
   };
   const hold = (k, v) => () => { walkRef.current.keys[k] = v; };
 
-  const btn = (active) => ({ background: active ? COLORS.accentDim : "rgba(18,22,27,0.92)", color: active ? COLORS.text : COLORS.text, border: `1px solid ${active ? COLORS.accent : COLORS.border}`, borderRadius: 5, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontFamily: FONT_DISPLAY, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em" });
+  const btn = (active) => ({ whiteSpace: "nowrap", flex: "none", background: active ? COLORS.accentDim : "rgba(18,22,27,0.92)", color: active ? COLORS.text : COLORS.text, border: `1px solid ${active ? COLORS.accent : COLORS.border}`, borderRadius: 5, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontFamily: FONT_DISPLAY, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em" });
   const lab = { fontSize: 9, color: COLORS.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 };
   const field = { background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: "3px 5px", fontSize: 11, fontFamily: "inherit" };
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "#0B0E11", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: COLORS.panel, borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap" }}>
-        <span style={{ color: COLORS.accent, fontWeight: "bold", fontSize: 13, letterSpacing: 1 }}>3D VIEW — {projectInfo?.title || "Untitled"}</span>
+    <div className="sd-ws" style={{ position: "absolute", inset: 0, background: "#0B0E11", display: "flex", flexDirection: "column", color: COLORS.text, fontFamily: FONT_UI }}>
+      <div className="sd-scroll-x" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: COLORS.raised, borderBottom: `1px solid ${COLORS.border}`, flexWrap: compact ? "nowrap" : "wrap", flexShrink: 0, minHeight: 52, boxSizing: "border-box" }}>
+        <span style={{ fontFamily: FONT_DISPLAY, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, fontSize: 14, whiteSpace: "nowrap" }}>3D view{compact ? "" : ` — ${projectInfo?.title || "Untitled"}`}</span>
         <div style={{ width: 1, height: 18, background: COLORS.border }} />
         {[["audience", "Audience"], ["top", "Top"], ["sr", "Stage R"], ["sl", "Stage L"]].map(([m, l]) => <button key={m} style={btn(false)} onClick={() => { setSeatMode(false); apiRef.current.look(m); }}>{l}</button>)}
         <div style={{ width: 1, height: 18, background: COLORS.border }} />
+        {compact && <button style={btn(showSight)} onClick={() => setShowSight((x) => !x)}>Sightlines</button>}
         <button style={btn(showBeams)} onClick={() => setShowBeams((s) => !s)}>Beams</button>
         <button style={btn(allBeams)} title="Show a beam for every fixture, straight down if it has no aim point" onClick={() => setAllBeams((s) => !s)}>All beams</button>
         <button style={btn(showWalls)} onClick={() => setShowWalls((s) => !s)}>Walls</button>
-        <label style={{ fontSize: 11, color: COLORS.textDim }}>Stage height (ft) <input type="number" min="0" step="0.5" value={deckFt} onChange={(e) => setDeckFt(Math.max(0, +e.target.value))} style={{ ...field, width: 52 }} /></label>
+        <label style={{ fontSize: 11, color: COLORS.textDim, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flex: "none" }}>Stage height (ft) <input type="number" min="0" step="0.5" value={deckFt} onChange={(e) => setDeckFt(Math.max(0, +e.target.value))} style={{ ...field, width: 52 }} /></label>
         <div style={{ flex: 1 }} />
         <button style={btn(walk)} title="Walk through the set at eye height: drag to look, W A S D or the arrows to move" onClick={toggleWalk}>Walk</button>
         <button style={btn(false)} title="Lighting plot for Vision, Capture, grandMA3 and others: fixture positions, aim, patch and colour, plus the set. Choose the fixture models in the receiving software." onClick={exportMVR}>⬇ MVR</button>
         <button style={btn(false)} title="Opens at real size in AR Quick Look on iPhone and iPad" onClick={exportUSDZ}>AR (.usdz)</button>
         <button style={btn(false)} onClick={exportGLB}>⬇ glTF (.glb)</button>
-        <button onClick={onClose} style={{ background: "transparent", color: COLORS.textDim, border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
       </div>
       <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
         <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
-        <div style={{ position: "absolute", left: 12, top: 12, width: 250, background: "rgba(22,33,62,0.94)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: 10 }}>
+        {(!compact || showSight) && <div style={{ position: "absolute", left: 12, top: 12, width: compact ? "calc(100% - 24px)" : 250, maxWidth: 300, maxHeight: "calc(100% - 24px)", overflowY: "auto", boxSizing: "border-box", background: "rgba(22,33,62,0.94)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: 10 }}>
           <div style={{ fontSize: 10, color: COLORS.accent, letterSpacing: 1, marginBottom: 6 }}>AUDIENCE SIGHTLINES</div>
           {zones.length === 0 ? <div style={{ fontSize: 11, color: COLORS.textDim }}>This venue has no audience zones. Add them in the Venue editor.</div> : (<>
             <div style={lab}>Seating zone</div>
@@ -303,13 +306,13 @@ export default function View3D({ elements, venue, stageW, stageH, projectInfo, o
             <div style={{ fontSize: 9, color: COLORS.textDim, margin: "4px 0 6px", lineHeight: 1.4 }}>Checks a 5'6" performer at each 1 ft grid point, on top of platforms. Red dots are spots this seat can't see. The blue ball is the seat.</div>
             <button style={{ ...btn(seatMode), width: "100%" }} onClick={goSeat}>View from this seat</button>
           </>)}
-        </div>
+        </div>}
         {walk && (
           <div style={{ position: "absolute", left: "50%", bottom: 16, transform: "translateX(-50%)", display: "grid", gridTemplateColumns: "repeat(3,44px)", gap: 4, touchAction: "none" }}>
             {[[null], ["f", "▲"], [null], ["l", "◀"], ["b", "▼"], ["r", "▶"]].map(([k, l], i) => k ? <button key={i} style={{ ...btn(false), padding: "10px 0", fontSize: 14 }} onPointerDown={hold(k, true)} onPointerUp={hold(k, false)} onPointerLeave={hold(k, false)}>{l}</button> : <span key={i} />)}
           </div>
         )}
-        <div style={{ position: "absolute", right: 12, bottom: 12, fontSize: 10, color: COLORS.textDim, background: "rgba(22,33,62,0.85)", padding: "4px 8px", borderRadius: 4 }}>{walk ? "Drag to look · W A S D / arrows or the buttons to walk (no collision)" : "Drag to orbit · right-drag to pan · scroll to zoom"}</div>
+        <div style={{ position: "absolute", right: 12, bottom: 12, display: vp === "phone" ? "none" : "block", fontSize: 10, color: COLORS.textDim, background: "rgba(22,33,62,0.85)", padding: "4px 8px", borderRadius: 4 }}>{walk ? "Drag to look · W A S D / arrows or the buttons to walk (no collision)" : "Drag to orbit · right-drag to pan · scroll to zoom"}</div>
       </div>
     </div>
   );

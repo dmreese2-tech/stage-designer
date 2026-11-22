@@ -112,3 +112,27 @@ export function AskText({ title, value = "", onOk, onCancel }) {
     </div>
   );
 }
+
+// Workspace page frame: fills the area between the app top bar and bottom bar, so the workspace
+// tabs stay reachable. Title row with actions (collapsed into a menu on phones) and a scrollable tab row.
+export function WsFrame({ title, tabs, tab, setTab, actions = [], main, children, scroll = true, pad = true }) {
+  const vp = useViewport();
+  const phone = vp === "phone";
+  return (
+    <div className="sd-ws" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: COLORS.bg, color: COLORS.text, fontFamily: FONT_UI, minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: phone ? "0 8px 0 12px" : "0 16px", minHeight: 52, background: COLORS.raised, borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+        <span style={{ flex: 1, minWidth: 0, fontFamily: FONT_DISPLAY, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
+        {!phone && actions.map((a) => <button key={a.label} title={a.title} onClick={a.onClick} style={ghost({ height: 36, padding: "0 12px", fontSize: 12 })}>{a.label}</button>)}
+        {phone && actions.length > 0 && <MenuButton iconOnly icon="more" ariaLabel="Actions" items={actions.map((a) => ({ label: a.label, onClick: a.onClick }))} />}
+        {main && <button title={main.title} onClick={main.onClick} style={primary({ height: phone ? 44 : 36, padding: "0 14px", fontSize: 12 })}>{main.label}</button>}
+      </div>
+      {tabs && (
+        <div role="tablist" className="sd-scroll-x" style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${COLORS.border}`, background: COLORS.raised }}>
+          {tabs.map(([id, l]) => (
+            <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+              style={{ flex: "none", minHeight: 44, padding: "0 16px", background: "transparent", color: tab === id ? COLORS.text : COLORS.textDim, border: "none", borderBottom: `2px solid ${tab === id ? COLORS.accent : "transparent"}`, cursor: "pointer", fontFamily: FONT_DISPLAY, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 500, fontSize: 12, whiteSpace: "nowrap" }}>{l}</button>))}
+        </div>)}
+      <div style={{ flex: 1, minHeight: 0, overflow: scroll ? "auto" : "hidden", padding: pad ? (phone ? 12 : 16) : 0, WebkitOverflowScrolling: "touch" }}>{children}</div>
+    </div>
+  );
+}

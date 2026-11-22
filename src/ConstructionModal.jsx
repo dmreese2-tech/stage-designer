@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { buildAll, planAll, cutListCSV, ftIn, templateOptions, TEMPLATE_LABELS, LUMBER, DEFAULT_SHOP, CHECK_ITEMS, unconfirmed, saveShop, BUILD_STAGES, stageProgress } from "./construction.js";
 import { svgPiece, svgSheetLayout, boardBarHTML, printHTML, svgIso, stepFigures } from "./constructionDraw.js";
 import { sheetsDXF, partsDXF } from "./constructionDXF.js";
+import { WsFrame, useViewport } from "./layout.jsx";
 
 const C = { onAccent: COLORS.onAccent, bg: COLORS.bg, panel: COLORS.panel, border: COLORS.border, accent: COLORS.accent, text: COLORS.text, dim: COLORS.textDim, warn: "#ffcc66" };
 const field = { background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 4, padding: "4px 6px", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", width: "100%" };
@@ -147,11 +148,13 @@ function StatusTab({ result, patchEl, setSelId, setTab }) {
 function PiecesTab({ result, selId, setSelId, patchEl }) {
   const pc = result.pieces.find((p) => p.elId === selId) || result.pieces[0];
   if (!result.pieces.length && !result.others.length) return <div style={{ padding: 40, textAlign: "center", color: C.dim }}>No set pieces in the plot yet. Place flats, platforms, stairs or walls first.</div>;
+  const phone = useViewport() === "phone";
+  const [detail, setDetail] = useState(false);
   return (
     <div style={{ display: "flex", gap: 14, height: "100%" }}>
-      <div style={{ width: 230, overflowY: "auto", flexShrink: 0 }}>
+      <div style={{ width: phone ? "100%" : 230, overflowY: "auto", flexShrink: 0, display: phone && detail ? "none" : "block" }}>
         {result.pieces.map((p) => (
-          <div key={p.id} onClick={() => setSelId(p.elId)} style={{ padding: "6px 8px", marginBottom: 4, borderRadius: 4, cursor: "pointer", background: pc && pc.id === p.id ? C.bg : "transparent", border: `1px solid ${pc && pc.id === p.id ? C.accent : C.border}` }}>
+          <div key={p.id} onClick={() => { setSelId(p.elId); setDetail(true); }} style={{ minHeight: phone ? 48 : 0, boxSizing: "border-box", padding: "6px 8px", marginBottom: 4, borderRadius: 4, cursor: "pointer", background: pc && pc.id === p.id ? C.bg : "transparent", border: `1px solid ${pc && pc.id === p.id ? C.accent : C.border}` }}>
             <div style={{ fontSize: 12 }}><b style={{ color: C.accent }}>{p.id}</b> {p.name} {p.warnings.length > 0 && <span style={{ color: C.warn }}>⚠</span>} <StageDots el={p.el} /></div>
             <div style={{ fontSize: 10, color: C.dim }}>{TEMPLATE_LABELS[p.template]} · {p.dims}</div>
           </div>
@@ -168,7 +171,8 @@ function PiecesTab({ result, selId, setSelId, patchEl }) {
           </div>
         )}
       </div>
-      <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
+      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", paddingRight: 4, display: phone && !detail ? "none" : "block" }}>
+        {phone && <button onClick={() => setDetail(false)} style={{ ...btn(false), minHeight: 44, marginBottom: 10 }}>← All pieces</button>}
         {pc ? (<>
           <div style={{ fontSize: 15, fontWeight: "bold", marginBottom: 2 }}><span style={{ color: C.accent }}>{pc.id}</span> · {pc.name}</div>
           <div style={{ fontSize: 11, color: C.dim, marginBottom: 10 }}>{TEMPLATE_LABELS[pc.template]} — {pc.dims}</div>
@@ -352,28 +356,22 @@ export default function ConstructionModal({ elements, setElements, shop, setShop
   const patchEl = (id, patch) => setElements((prev) => prev.map((e) => (e.id === id ? { ...e, construction: { ...(e.construction || {}), ...patch } } : e)));
   const doPrint = () => { const w = window.open("", "_blank"); if (w) { w.document.write(printHTML(result, plan, shop, projectInfo)); w.document.close(); } };
   const tabs = [["pieces", `Pieces (${result.pieces.length})`], ["cuts", "Cut List"], ["buy", "Buy List"], ["status", "Build Status"], ["shop", unconfirmed(shop) ? `Shop Standards (${unconfirmed(shop)} to check)` : "Shop Standards"]];
+  const name = projectInfo?.title || "cut-list";
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, width: 1100, maxWidth: "97vw", height: "90vh", display: "flex", flexDirection: "column", color: C.text, fontFamily: FONT_UI }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
-          <span style={{ flex: 1, fontSize: 13, fontWeight: "bold", color: C.accent, letterSpacing: 1 }}>CONSTRUCTION — {projectInfo?.title || "Untitled"}</span>
-          <button style={btn(false)} onClick={() => download(`${projectInfo?.title || "cut-list"}-cutlist.csv`, cutListCSV(result, plan))}>⬇ CSV</button>
-          <button style={btn(false)} title="True outlines of curved ribs, column rings, arch corners and triangle decks, one of each part, for CNC / laser" onClick={() => download(`${projectInfo?.title || "cut-list"}-parts.dxf`, partsDXF(result), "application/dxf")}>⬇ Part outlines</button>
-          <button style={btn(false)} title="Sheet-goods cut layouts for CNC / laser" onClick={() => download(`${projectInfo?.title || "cut-list"}-sheets.dxf`, sheetsDXF(plan, shop), "application/dxf")}>⬇ DXF</button>
-          <button style={btn(true)} onClick={doPrint}>Print / PDF</button>
-          <button onClick={onClose} style={{ background: "transparent", color: C.dim, border: "none", fontSize: 20, cursor: "pointer" }}>✕</button>
-        </div>
-        <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
-          {tabs.map(([id, l]) => <button key={id} onClick={() => setTab(id)} style={{ padding: "8px 16px", background: tab === id ? C.bg : "transparent", color: tab === id ? C.accent : C.dim, border: "none", borderBottom: tab === id ? `2px solid ${C.accent}` : "2px solid transparent", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>{l}</button>)}
-        </div>
-        <div style={{ flex: 1, overflow: "hidden", padding: 14 }}>
-          {tab === "pieces" && <PiecesTab result={result} selId={selId} setSelId={setSelId} patchEl={patchEl} />}
-          {tab === "cuts" && <CutListTab plan={plan} shop={shop} />}
-          {tab === "buy" && <BuyListTab plan={plan} shop={shop} />}
-          {tab === "status" && <StatusTab result={result} patchEl={patchEl} setSelId={setSelId} setTab={setTab} />}
-          {tab === "shop" && <ShopTab shop={shop} setShop={setShop} />}
-        </div>
+    <WsFrame title={`Build — ${projectInfo?.title || "Untitled"}`} tabs={tabs} tab={tab} setTab={setTab} scroll={false}
+      actions={[
+        { label: "CSV", onClick: () => download(`${name}-cutlist.csv`, cutListCSV(result, plan)) },
+        { label: "Part outlines", title: "True outlines of curved ribs, column rings, arch corners and triangle decks, one of each part, for CNC / laser", onClick: () => download(`${name}-parts.dxf`, partsDXF(result), "application/dxf") },
+        { label: "DXF", title: "Sheet-goods cut layouts for CNC / laser", onClick: () => download(`${name}-sheets.dxf`, sheetsDXF(plan, shop), "application/dxf") },
+      ]}
+      main={{ label: "Print / PDF", onClick: doPrint }}>
+      <div style={{ height: "100%", padding: 14, boxSizing: "border-box", overflow: "hidden" }}>
+        {tab === "pieces" && <PiecesTab result={result} selId={selId} setSelId={setSelId} patchEl={patchEl} />}
+        {tab === "cuts" && <CutListTab plan={plan} shop={shop} />}
+        {tab === "buy" && <BuyListTab plan={plan} shop={shop} />}
+        {tab === "status" && <StatusTab result={result} patchEl={patchEl} setSelId={setSelId} setTab={setTab} />}
+        {tab === "shop" && <ShopTab shop={shop} setShop={setShop} />}
       </div>
-    </div>
+    </WsFrame>
   );
 }
