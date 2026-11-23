@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react"
 import { VenuePicker } from "./VenuePicker.jsx";
 import ConstructionModal from "./ConstructionModal.jsx";
 import { loadShop, mergeShop } from "./construction.js";
-import logoHorizontal from "./assets/logos/lockup-horizontal-on-dark.svg";
-import logoMark from "./assets/logos/mark-on-dark.svg";
+import logoHorizontal from "./assets/logos/stage-designer-lockup-on-dark.svg";
+import logoMark from "./assets/logos/stage-designer-mark-on-dark.svg";
 import { Icon, useViewport, MenuButton, Sheet, AskText, ctl, ghost, primary } from "./layout.jsx";
 import { GRID, COLORS, GEL_PRESETS, FIXTURE_DEFS, BATTEN_DEFS, SET_DEFS, TOOLS, LAYERS, VENUE_CONFIGS, DEFAULT_VENUE, FONT_UI, FONT_DISPLAY, FONT_MONO } from "./constants.js";
 import { parseFtIn } from "./units.js";
@@ -1061,15 +1061,15 @@ export default function StageDesigner() {
       <div style={{ display:"flex", alignItems:"center", gap:vp==="phone"?8:12, padding:vp==="phone"?"0 8px":"0 12px", minHeight:vp==="desktop"?52:56, background:COLORS.raised, borderBottom:`1px solid ${COLORS.border}`, flexShrink:0 }}>
         {vp === "desktop" && (
           <a href="https://apps.upstage.systems" title="Back to Upstage Systems apps" style={{ ...ghost({ height:36, padding:"0 10px", border:`1px solid ${COLORS.border}`, color:COLORS.textDim, textDecoration:"none", fontSize:12 }) }}>Apps</a>)}
-        <a href="https://apps.upstage.systems" title="Back to Upstage Systems apps" style={{ display:"flex", flex:"none", minHeight:44, alignItems:"center" }}><img src={vp==="desktop" ? logoHorizontal : logoMark} alt="Upstage Systems" style={{ width:vp==="desktop"?120:44, height:"auto", display:"block", flex:"none" }}/></a>
+        <a href="https://apps.upstage.systems" title="Back to Upstage Systems apps" style={{ display:"flex", flex:"none", minHeight:44, alignItems:"center" }}><img src={vp==="desktop" ? logoHorizontal : logoMark} alt="Stage Designer by Upstage Systems" style={{ width:vp==="desktop"?148:44, height:"auto", display:"block", flex:"none" }}/></a>
         <div style={{ display:"flex", flexDirection:"column", lineHeight:1.2, minWidth:0, flex:vp==="desktop"?"none":1 }}>
-          <span style={{ fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.04em", fontWeight:600, fontSize:14, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{projectInfo.title || "Stage Designer"}</span>
-          <span title={saveNote || "Your plan is saved in this browser automatically"} style={{ fontSize:12, color:saveNote?COLORS.accent:COLORS.textDim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{projectInfo.title ? "Stage Designer" : ""}{projectInfo.title && savedText ? " · " : ""}{savedText}</span>
+          <span style={{ fontFamily:FONT_DISPLAY, textTransform:"uppercase", letterSpacing:"0.04em", fontWeight:600, fontSize:14, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:vp==="desktop"?150:undefined }}>{projectInfo.title || (vp==="desktop" ? "" : "Stage Designer")}</span>
+          <span title={saveNote || "Your plan is saved in this browser automatically"} style={{ fontSize:12, color:saveNote?COLORS.accent:COLORS.textDim, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{projectInfo.title && vp!=="desktop" ? "Stage Designer" : ""}{projectInfo.title && vp!=="desktop" && savedText ? " · " : ""}{savedText}</span>
         </div>
         {vp !== "phone" && (
-          <div role="tablist" aria-label="Workspaces" className="sd-scroll-x" style={{ flex:1, minWidth:0, display:"flex", justifyContent:vp==="desktop"?"center":"flex-start", gap:4 }}>
+          <div role="tablist" aria-label="Workspaces" className="sd-scroll-x" style={{ flex:1, minWidth:0, display:"flex", justifyContent:vp==="desktop"?"safe center":"flex-start", gap:4 }}>
             {workspaces.map(w => (
-              <button key={w.id} role="tab" aria-selected={w.on} aria-label={w.label} onClick={w.go} style={ctl(w.on, { padding:"0 12px", fontSize:13 })}>
+              <button key={w.id} role="tab" aria-selected={w.on} aria-label={w.label} onClick={w.go} style={ctl(w.on, { padding:"0 8px", fontSize:13 })}>
                 <Icon name={w.icon} size={20}/>{(vp==="desktop" || w.on) && <span>{w.label}</span>}</button>))}
           </div>)}
         {vp === "desktop" && <>{iconBtn("undo","Undo (Ctrl/Cmd+Z)",undo,!histCount.u)}{iconBtn("redo","Redo (Ctrl/Cmd+Shift+Z)",redo,!histCount.r)}</>}
