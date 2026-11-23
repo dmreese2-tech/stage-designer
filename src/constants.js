@@ -112,9 +112,9 @@ export const LAYERS = [
 // ── Venue configuration presets ───────────────────────────────────────────────
 export const VENUE_CONFIGS = {
   burgdorff: {
-    label: "Burgdorff Center",
+    label: "Apron Stage",
     icon: "",
-    desc: "Burgdorff Center, Maplewood NJ — curved DS apron, recessed US center section",
+    desc: "Curved downstage apron with a recessed upstage center section",
     stageW: 35.5, stageH: 26.5,
     roomW: 36, roomH: 32,
     stageOffX: 0, stageOffY: 0,
