@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
+import { VenuePicker } from "./VenuePicker.jsx";
 import ConstructionModal from "./ConstructionModal.jsx";
 import { loadShop, mergeShop } from "./construction.js";
 import logoHorizontal from "./assets/logos/lockup-horizontal-on-dark.svg";
@@ -119,7 +120,8 @@ export default function StageDesigner() {
   const [numberPieces, setNumberPieces] = useState(true);
   const [showProjectInfo, setShowProjectInfo] = useState(false);
   const [showVenueEditor, setShowVenueEditor] = useState(false);
-  const [projectInfo, setProjectInfo] = useState(_auto?.projectInfo ?? { title:"", venue:"Burgdorff Center", designer:"", director:"", revision:"1" });
+  const [showVenuePicker, setShowVenuePicker] = useState(!_auto);   // a brand-new plan asks which venue it is for
+  const [projectInfo, setProjectInfo] = useState(_auto?.projectInfo ?? { title:"", venue:"Apron with Upstage Cove", designer:"", director:"", revision:"1" });
   const [venue, setVenue] = useState(_auto?.venue ?? { ...DEFAULT_VENUE });
   const [snapStep, setSnapStep] = useState(() => { const v = +localStorage.getItem("sd_snap"); return [0, GRID, GRID/2, GRID/12].includes(v) && localStorage.getItem("sd_snap") !== null ? v : GRID; });
   SNAP = snapStep;
@@ -175,8 +177,9 @@ export default function StageDesigner() {
   const newProject = () => {
     if (!window.confirm("Start a new project? The current plan will be cleared. Export JSON first if you want to keep it.")) return;
     loadElements([]); setSelected(null); setUnderlay(null); setLayerLocked({}); setScenes([]); setActiveSceneId(null);
-    setProjectInfo({ title:"", venue:"Burgdorff Center", designer:"", director:"", revision:"1" });
+    setProjectInfo({ title:"", venue:"Apron with Upstage Cove", designer:"", director:"", revision:"1" });
     try { localStorage.removeItem(AUTOSAVE_KEY); } catch {}
+    setShowVenuePicker(true);
   };
 
   const selEl = elements.find(e => e.id === selected);
@@ -1048,6 +1051,10 @@ export default function StageDesigner() {
       {showProjectInfo && <ProjectInfoModal projectInfo={projectInfo} setProjectInfo={setProjectInfo} onClose={()=>setShowProjectInfo(false)}/>}
       {showCompare && <CompareModal elements={elements} onClose={()=>setShowCompare(false)}/>}
       {showSchedule && <ScheduleModal projectInfo={projectInfo} elements={elements} stageW={stageW} stageH={stageH} lightingEls={lightingEls} battens={battens} setSelected={setSelected} setSidebarTab={setSidebarTab} onClose={()=>setShowSchedule(false)}/>}
+      {showVenuePicker && <VenuePicker
+        onPick={(v)=>{ setVenue({ ...v.venue }); setStageW(v.stageW); setStageH(v.stageH); setProjectInfo(p=>({ ...p, venue:v.name })); setShowVenuePicker(false); }}
+        onCreate={()=>{ setShowVenuePicker(false); setShowVenueEditor(true); }}
+        onSkip={()=>setShowVenuePicker(false)}/>}
       {showVenueEditor && <VenueEditorModal venue={venue} stageW={stageW} stageH={stageH} setStageW={setStageW} setStageH={setStageH} onClose={()=>setShowVenueEditor(false)} onApply={(d)=>{setVenue(d); setShowVenueEditor(false);}}/>}
 
       {/* ── top bar ── */}

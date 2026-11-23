@@ -98,3 +98,7 @@ Every rule that was fixed in the templates is now a Shop Standards setting, with
 - Properties panel has a Height field for upright pieces (3D and Build read it); Build height edits update the same field. Elevation relabelled "Elevation / deck height".
 
 - Properties: Size is now "Footprint on plan" (Width, Depth); one Height (ft-in) field drives 3D and Build; elevation is "Raised off floor" (platforms: Height, top of deck). Build no longer has its own height box.
+
+- A new plan opens a "Choose a venue" dialog: pick a saved venue or a starting layout, or create a new venue. Skip keeps the default. It also appears after New project.
+
+- The Burgdorff layout is now called "Apron with Upstage Cove" (curved downstage apron, recessed upstage cove). Saved plans keep working.
