@@ -102,3 +102,5 @@ Every rule that was fixed in the templates is now a Shop Standards setting, with
 - A new plan opens a "Choose a venue" dialog: pick a saved venue or a starting layout, or create a new venue. Skip keeps the default. It also appears after New project.
 
 - The Burgdorff layout is now called "Apron with Upstage Cove" (curved downstage apron, recessed upstage cove). Saved plans keep working.
+
+- Stage Designer branding: new Stage Designer logo (top bar lockup and mark, favicon, home-screen icon, PDF footer) from the Upstage Tool Logos set.
