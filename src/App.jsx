@@ -121,7 +121,7 @@ export default function StageDesigner() {
   const [showProjectInfo, setShowProjectInfo] = useState(false);
   const [showVenueEditor, setShowVenueEditor] = useState(false);
   const [showVenuePicker, setShowVenuePicker] = useState(!_auto);   // a brand-new plan asks which venue it is for
-  const [projectInfo, setProjectInfo] = useState(_auto?.projectInfo ?? { title:"", venue:"Apron Stage", designer:"", director:"", revision:"1" });
+  const [projectInfo, setProjectInfo] = useState(_auto?.projectInfo ?? { title:"", venue:"Apron with Upstage Cove", designer:"", director:"", revision:"1" });
   const [venue, setVenue] = useState(_auto?.venue ?? { ...DEFAULT_VENUE });
   const [snapStep, setSnapStep] = useState(() => { const v = +localStorage.getItem("sd_snap"); return [0, GRID, GRID/2, GRID/12].includes(v) && localStorage.getItem("sd_snap") !== null ? v : GRID; });
   SNAP = snapStep;
@@ -177,7 +177,7 @@ export default function StageDesigner() {
   const newProject = () => {
     if (!window.confirm("Start a new project? The current plan will be cleared. Export JSON first if you want to keep it.")) return;
     loadElements([]); setSelected(null); setUnderlay(null); setLayerLocked({}); setScenes([]); setActiveSceneId(null);
-    setProjectInfo({ title:"", venue:"Apron Stage", designer:"", director:"", revision:"1" });
+    setProjectInfo({ title:"", venue:"Apron with Upstage Cove", designer:"", director:"", revision:"1" });
     try { localStorage.removeItem(AUTOSAVE_KEY); } catch {}
     setShowVenuePicker(true);
   };

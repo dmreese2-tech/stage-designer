@@ -112,9 +112,9 @@ export const LAYERS = [
 // ── Venue configuration presets ───────────────────────────────────────────────
 export const VENUE_CONFIGS = {
   burgdorff: {
-    label: "Apron Stage",
+    label: "Apron with Upstage Cove",
     icon: "",
-    desc: "Curved downstage apron with a recessed upstage center section",
+    desc: "Curved downstage apron with a recessed upstage cove",
     stageW: 35.5, stageH: 26.5,
     roomW: 36, roomH: 32,
     stageOffX: 0, stageOffY: 0,
