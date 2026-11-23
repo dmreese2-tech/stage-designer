@@ -154,14 +154,14 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
                           <input type="number" value={draft.apronRadius??17.75} min={5} max={100} step={0.25}
                             onChange={e=>upd("apronRadius",+e.target.value)}
                             style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}> Default = 17.75</div>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Default = 17.75</div>
                         </div>
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>DEPTH AT CENTER (ft)</div>
                           <input type="number" value={draft.apronDepth??4.833} min={0.5} max={20} step={0.083}
                             onChange={e=>upd("apronDepth",+e.target.value)}
                             style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}> Default = 4.83 (4'10")</div>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Default = 4.83 (4'10")</div>
                         </div>
                       </div>
                     )}
@@ -180,14 +180,14 @@ export function VenueEditorModal({ venue, stageW, stageH, setStageW, setStageH, 
                           <input type="number" value={draft.notchW??13.875} min={1} max={50} step={0.083}
                             onChange={e=>upd("notchW",+e.target.value)}
                             style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}> Default = 13.875 (13'10½") — center section</div>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Default = 13.875 (13'10½") — center section</div>
                         </div>
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:9, color:COLORS.textDim, marginBottom:3 }}>WING STEP DEPTH (ft)</div>
                           <input type="number" value={draft.notchD??4.5} min={0.5} max={20} step={0.083}
                             onChange={e=>upd("notchD",+e.target.value)}
                             style={{ width:"100%", background:COLORS.panel, color:COLORS.text, border:`1px solid ${COLORS.border}`, borderRadius:4, padding:"4px 6px", fontSize:12, fontFamily:"inherit", boxSizing:"border-box" }}/>
-                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}> Default = 4.5 (4'6") — how far wings step DS</div>
+                          <div style={{ fontSize:8, color:COLORS.textDim, marginTop:2 }}>Default = 4.5 (4'6") — how far wings step DS</div>
                         </div>
                       </div>
                     )}
